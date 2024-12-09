@@ -17,7 +17,7 @@ builds:
     goarch:
       - amd64
     flags:
-      - -tags="cgo fts5"
+      - -tags=fts5
     ldflags:
       - -s -w 
   - id: "wikilite-darwin-arm64"
@@ -32,7 +32,7 @@ builds:
     goarch:
       - arm64
     flags:
-      - -tags="cgo fts5"
+      - -tags=fts5
     ldflags:
       - -s -w 
   - id: "wikilite-linux-amd64"
@@ -47,7 +47,7 @@ builds:
     goarch:
       - amd64
     flags:
-      - -tags="cgo fts5"
+      - -tags=fts5
     ldflags:
       - -s -w -extldflags "-static"
   - id: "wikilite-linux-i386"
@@ -62,7 +62,7 @@ builds:
     goarch:
       - 386
     flags:
-      - -tags="cgo fts5" -m32
+      - -tags=fts5 -m32
     ldflags:
       - -s -w -extldflags "-static"
   - id: "wikilite-linux-armhf"
@@ -97,7 +97,7 @@ builds:
     goarch:
       - arm64
     flags:
-      - -tags="cgo fts5"
+      - -tags=fts5
     ldflags:
       - -s -w -extldflags "-static"
   - id: "wikilite-windows-amd64"
@@ -112,7 +112,7 @@ builds:
     goarch:
       - amd64
     flags:
-      - -tags="cgo fts5"
+      - -tags=fts5
       - -buildmode=exe
     ldflags:
       - -s -w 
@@ -128,7 +128,7 @@ builds:
       - CC=/llvm-mingw/bin/aarch64-w64-mingw32-gcc
       - CXX=/llvm-mingw/bin/aarch64-w64-mingw32-g++
     flags:
-      - -tags="cgo fts5"
+      - -tags=fts5
       - -buildmode=exe
     ldflags:
       - -s -w
