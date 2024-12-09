@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // DBHandler manages database operations
@@ -27,7 +27,7 @@ type TextEntry struct {
 
 // NewDBHandler creates and initializes a new database connection
 func NewDBHandler(dbPath string) (*DBHandler, error) {
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %v", err)
 	}
@@ -41,43 +41,47 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 	return handler, nil
 }
 
-// initializeDB creates the necessary tables and indexes
 func (h *DBHandler) initializeDB() error {
 	queries := []string{
+		`CREATE TABLE IF NOT EXISTS hashes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hash TEXT UNIQUE NOT NULL,
+            text TEXT NOT NULL
+        )`,
 		`CREATE TABLE IF NOT EXISTS articles (
-			id INTEGER PRIMARY KEY,
-			title TEXT NOT NULL,
-			entity TEXT NOT NULL
-		)`,
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            entity TEXT NOT NULL
+        )`,
 		`CREATE TABLE IF NOT EXISTS sections (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			article_id INTEGER,
-			sub TEXT,
-			pow INTEGER,
-			FOREIGN KEY(article_id) REFERENCES articles(id)
-		)`,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id INTEGER,
+            sub TEXT,
+            pow INTEGER,
+            FOREIGN KEY(article_id) REFERENCES articles(id)
+        )`,
 		`CREATE TABLE IF NOT EXISTS content (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			section_id INTEGER,
-			hash TEXT NOT NULL,
-			text TEXT NOT NULL,
-			FOREIGN KEY(section_id) REFERENCES sections(id)
-		)`,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            section_id INTEGER,
+            hash_id INTEGER NOT NULL,
+            FOREIGN KEY(section_id) REFERENCES sections(id),
+            FOREIGN KEY(hash_id) REFERENCES hashes(id)
+        )`,
 		`CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
-			text,
-			content='content',
-			content_rowid='id'
-		)`,
-		`CREATE TRIGGER IF NOT EXISTS content_ai AFTER INSERT ON content BEGIN
-			INSERT INTO content_fts(rowid, text) VALUES (new.id, new.text);
-		END`,
-		`CREATE TRIGGER IF NOT EXISTS content_ad AFTER DELETE ON content BEGIN
-			INSERT INTO content_fts(content_fts, rowid, text) VALUES('delete', old.id, old.text);
-		END`,
-		`CREATE TRIGGER IF NOT EXISTS content_au AFTER UPDATE ON content BEGIN
-			INSERT INTO content_fts(content_fts, rowid, text) VALUES('delete', old.id, old.text);
-			INSERT INTO content_fts(rowid, text) VALUES (new.id, new.text);
-		END`,
+            text,
+            content='hashes',
+            content_rowid='id'
+        )`,
+		`CREATE TRIGGER IF NOT EXISTS hashes_ai AFTER INSERT ON hashes BEGIN
+            INSERT INTO content_fts(rowid, text) VALUES (new.id, new.text);
+        END`,
+		`CREATE TRIGGER IF NOT EXISTS hashes_ad AFTER DELETE ON hashes BEGIN
+            INSERT INTO content_fts(content_fts, rowid, text) VALUES('delete', old.id, old.text);
+        END`,
+		`CREATE TRIGGER IF NOT EXISTS hashes_au AFTER UPDATE ON hashes BEGIN
+            INSERT INTO content_fts(content_fts, rowid, text) VALUES('delete', old.id, old.text);
+            INSERT INTO content_fts(rowid, text) VALUES (new.id, new.text);
+        END`,
 	}
 
 	for _, query := range queries {
@@ -133,15 +137,31 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 			hash := entry["hash"]
 			text := entry["text"]
 
+			// Try to insert hash first, ignore if already exists
+			result, err = tx.Exec(
+				"INSERT OR IGNORE INTO hashes (hash, text) VALUES (?, ?)",
+				hash, text,
+			)
+			if err != nil {
+				return fmt.Errorf("error inserting hash: %v", err)
+			}
+
+			// Get hash_id (whether newly inserted or existing)
+			var hashID int
+			err = tx.QueryRow("SELECT id FROM hashes WHERE hash = ?", hash).Scan(&hashID)
+			if err != nil {
+				return fmt.Errorf("error getting hash ID: %v", err)
+			}
+
+			// Insert content with hash_id reference
 			_, err = tx.Exec(
-				"INSERT INTO content (section_id, hash, text) VALUES (?, ?, ?)",
-				sectionID, hash, text,
+				"INSERT INTO content (section_id, hash_id) VALUES (?, ?)",
+				sectionID, hashID,
 			)
 			if err != nil {
 				return fmt.Errorf("error inserting content: %v", err)
 			}
 		}
-
 	}
 
 	return tx.Commit()

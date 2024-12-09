@@ -19,7 +19,7 @@ test:
 	@go test -v ./test
 
 wikilite:
-	@go build -ldflags "-s -w" -o wikilite *.go
+	@go build -tags "fts5" -ldflags "-s -w" -o wikilite .
 	@strip wikilite
 
 release-dry-run:
