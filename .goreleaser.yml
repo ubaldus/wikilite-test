@@ -6,7 +6,7 @@ before:
 
 builds:
   - id: "wikilite-darwin-amd64"
-    main: ./wikilite
+    main: .
     binary: wikilite
     env:
       - CGO_ENABLED=1
@@ -21,7 +21,7 @@ builds:
     ldflags:
       - -s -w 
   - id: "wikilite-darwin-arm64"
-    main: ./wikilite
+    main: .
     binary: wikilite
     env:
       - CGO_ENABLED=1
@@ -36,7 +36,7 @@ builds:
     ldflags:
       - -s -w 
   - id: "wikilite-linux-amd64"
-    main: ./wikilite
+    main: .
     binary: wikilite
     env:
       - CGO_ENABLED=1
@@ -51,7 +51,7 @@ builds:
     ldflags:
       - -s -w -extldflags "-static"
   - id: "wikilite-linux-i386"
-    main: ./wikilite
+    main: .
     binary: wikilite
     env:
       - CGO_ENABLED=1
@@ -66,7 +66,7 @@ builds:
     ldflags:
       - -s -w -extldflags "-static"
   - id: "wikilite-linux-armhf"
-    main: ./wikilite
+    main: .
     binary: wikilite
     goos:
       - linux
@@ -86,7 +86,7 @@ builds:
     ldflags:
       - -s -w -extldflags "-static"
   - id: "wikilite-linux-arm64"
-    main: ./wikilite
+    main: .
     binary: wikilite
     env:
       - CGO_ENABLED=1
@@ -101,7 +101,7 @@ builds:
     ldflags:
       - -s -w -extldflags "-static"
   - id: "wikilite-windows-amd64"
-    main: ./wikilite
+    main: .
     binary: wikilite
     env:
       - CGO_ENABLED=1
@@ -117,7 +117,7 @@ builds:
     ldflags:
       - -s -w 
   - id: "wikilite-windows-arm64"
-    main: ./wikilite
+    main: .
     binary: wikilite
     goos:
       - windows
