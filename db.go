@@ -25,6 +25,14 @@ type TextEntry struct {
 	Text string `json:"text"`
 }
 
+// SearchResult represents a single search result
+type SearchResult struct {
+	Title   string
+	Entity  string
+	Text    string
+	Section string
+}
+
 // NewDBHandler creates and initializes a new database connection
 func NewDBHandler(dbPath string) (*DBHandler, error) {
 	db, err := sql.Open("sqlite3", dbPath)
@@ -39,58 +47,6 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 	}
 
 	return handler, nil
-}
-
-func (h *DBHandler) initializeDB() error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS hashes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            hash TEXT UNIQUE NOT NULL,
-            text TEXT NOT NULL
-        )`,
-		`CREATE TABLE IF NOT EXISTS articles (
-            id INTEGER PRIMARY KEY,
-            title TEXT NOT NULL,
-            entity TEXT NOT NULL
-        )`,
-		`CREATE TABLE IF NOT EXISTS sections (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_id INTEGER,
-            sub TEXT,
-            pow INTEGER,
-            FOREIGN KEY(article_id) REFERENCES articles(id)
-        )`,
-		`CREATE TABLE IF NOT EXISTS content (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            section_id INTEGER,
-            hash_id INTEGER NOT NULL,
-            FOREIGN KEY(section_id) REFERENCES sections(id),
-            FOREIGN KEY(hash_id) REFERENCES hashes(id)
-        )`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
-            text,
-            content='hashes',
-            content_rowid='id'
-        )`,
-		`CREATE TRIGGER IF NOT EXISTS hashes_ai AFTER INSERT ON hashes BEGIN
-            INSERT INTO content_fts(rowid, text) VALUES (new.id, new.text);
-        END`,
-		`CREATE TRIGGER IF NOT EXISTS hashes_ad AFTER DELETE ON hashes BEGIN
-            INSERT INTO content_fts(content_fts, rowid, text) VALUES('delete', old.id, old.text);
-        END`,
-		`CREATE TRIGGER IF NOT EXISTS hashes_au AFTER UPDATE ON hashes BEGIN
-            INSERT INTO content_fts(content_fts, rowid, text) VALUES('delete', old.id, old.text);
-            INSERT INTO content_fts(rowid, text) VALUES (new.id, new.text);
-        END`,
-	}
-
-	for _, query := range queries {
-		if _, err := h.db.Exec(query); err != nil {
-			return fmt.Errorf("error executing query %s: %v", query, err)
-		}
-	}
-
-	return nil
 }
 
 // SaveArticle stores an article and its content in the database
@@ -170,4 +126,106 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 // Close closes the database connection
 func (h *DBHandler) Close() error {
 	return h.db.Close()
+}
+
+// SearchArticles performs a full-text search and returns the top results
+func (h *DBHandler) SearchArticles(query string, limit int) ([]SearchResult, error) {
+	// Use proper FTS5 syntax with bm25 ranking
+	sqlQuery := `
+        SELECT 
+            title, 
+            entity, 
+            section, 
+            text,
+            bm25(search_index)
+        FROM search_index
+        WHERE search_index MATCH ? 
+        ORDER BY bm25(search_index)
+        LIMIT ?`
+
+	// Add wildcards to search terms for partial matching
+	searchQuery := fmt.Sprintf("%s*", query)
+
+	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search error: %v", err)
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var result SearchResult
+		var rank float64
+		if err := rows.Scan(&result.Title, &result.Entity, &result.Section, &result.Text, &rank); err != nil {
+			return nil, fmt.Errorf("error scanning result: %v", err)
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+func (h *DBHandler) initializeDB() error {
+	queries := []string{
+		// Create 'hashes' table
+		`CREATE TABLE IF NOT EXISTS hashes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hash TEXT UNIQUE NOT NULL,
+        text TEXT NOT NULL
+    )`,
+
+		// Create 'articles' table
+		`CREATE TABLE IF NOT EXISTS articles (
+        id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        entity TEXT NOT NULL
+    )`,
+
+		// Create 'sections' table with foreign key to 'articles'
+		`CREATE TABLE IF NOT EXISTS sections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id INTEGER,
+        sub TEXT,
+        pow INTEGER,
+        FOREIGN KEY(article_id) REFERENCES articles(id)
+    )`,
+
+		// Create 'content' table with foreign keys to 'sections' and 'hashes'
+		`CREATE TABLE IF NOT EXISTS content (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        section_id INTEGER,
+        hash_id INTEGER NOT NULL,
+        FOREIGN KEY(section_id) REFERENCES sections(id),
+        FOREIGN KEY(hash_id) REFERENCES hashes(id)
+    )`,
+
+		// Create new FTS table (Full Text Search)
+		`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+        title,
+        entity,
+        section,
+        text
+    )`,
+		`CREATE TRIGGER IF NOT EXISTS content_ai_trigger AFTER INSERT ON content BEGIN
+    INSERT INTO search_index(title, entity, section, text)
+    SELECT 
+        a.title,
+        a.entity,
+        s.sub,
+        h.text
+    FROM content c
+    JOIN sections s ON c.section_id = s.id
+    JOIN articles a ON s.article_id = a.id
+    JOIN hashes h ON c.hash_id = h.id
+    WHERE c.id = new.id;
+END`,
+	}
+	// Execute all queries
+	for _, query := range queries {
+		if _, err := h.db.Exec(query); err != nil {
+			return fmt.Errorf("error executing query %s: %v", query, err)
+		}
+	}
+
+	return nil
 }

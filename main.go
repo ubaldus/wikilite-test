@@ -10,6 +10,9 @@ import (
 type Config struct {
 	importPath string // URL or file path to import from
 	dbPath     string // Path to SQLite database (optional)
+	web        bool   // Enable web interface
+	host       string // Web server host
+	port       int    // Web server port
 }
 
 var (
@@ -17,38 +20,31 @@ var (
 	cfg *Config
 )
 
-// parseConfig handles command line arguments and returns a Config
 func parseConfig() (*Config, error) {
 	cfg := &Config{}
 
-	// Define flags
-	flag.StringVar(&cfg.importPath, "import", "", "URL or file path to import (required)")
+	flag.StringVar(&cfg.importPath, "import", "", "URL or file path to import")
 	flag.StringVar(&cfg.dbPath, "db", "", "SQLite database path (optional, if not specified outputs JSON)")
+	flag.BoolVar(&cfg.web, "web", false, "Enable web interface")
+	flag.StringVar(&cfg.host, "host", "localhost", "Web server host")
+	flag.IntVar(&cfg.port, "port", 8080, "Web server port")
 
-	// Custom usage message
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s --import <url/file> [--db file]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s --import <url/file> [--db file] [--web] [--host host] [--port port]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		fmt.Fprintf(os.Stderr, "  --import <url/file>  URL or file path to import (required)\n")
-		fmt.Fprintf(os.Stderr, "  --db <file>         SQLite database path (optional)\n")
-		fmt.Fprintf(os.Stderr, "\nIf --db is not specified, JSON output will be printed to stdout\n")
-		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  %s --import data.tar.gz\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s --import http://example.com/data.tar.gz --db output.db\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  --import <url/file>  URL or file path to import\n")
+		fmt.Fprintf(os.Stderr, "  --db <file>         SQLite database path\n")
+		fmt.Fprintf(os.Stderr, "  --web              Enable web interface\n")
+		fmt.Fprintf(os.Stderr, "  --host             Web server host (default: localhost)\n")
+		fmt.Fprintf(os.Stderr, "  --port             Web server port (default: 8080)\n")
 	}
 
 	flag.Parse()
-
-	// Validate required import path
-	if cfg.importPath == "" {
-		return nil, fmt.Errorf("--import is required")
-	}
 
 	return cfg, nil
 }
 
 func main() {
-	// Parse command line configuration
 	cfg, err := parseConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
@@ -56,7 +52,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize database if path specified
 	if cfg.dbPath != "" {
 		db, err = NewDBHandler(cfg.dbPath)
 		if err != nil {
@@ -66,15 +61,31 @@ func main() {
 		defer db.Close()
 	}
 
-	// Process the input based on whether it's a URL or local file
-	if strings.HasPrefix(cfg.importPath, "http://") || strings.HasPrefix(cfg.importPath, "https://") {
-		err = downloadAndProcessFile(cfg.importPath)
-	} else {
-		err = processLocalFile(cfg.importPath)
+	// Process import
+	if cfg.importPath != "" {
+		if strings.HasPrefix(cfg.importPath, "http://") || strings.HasPrefix(cfg.importPath, "https://") {
+			err = downloadAndProcessFile(cfg.importPath)
+		} else {
+			err = processLocalFile(cfg.importPath)
+		}
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error processing import: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error processing import: %v\n", err)
-		os.Exit(1)
+	// Start web server if requested
+	if cfg.web && db != nil {
+		server, err := NewWebServer(db)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating web server: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := server.Start(cfg.host, cfg.port); err != nil {
+			fmt.Fprintf(os.Stderr, "Error starting web server: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
