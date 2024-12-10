@@ -140,24 +140,95 @@ func (h *DBHandler) Close() error {
 	return h.db.Close()
 }
 
-// SearchArticles performs a full-text search and returns the top results
-func (h *DBHandler) SearchArticles(query string, limit int) ([]SearchResult, error) {
-	// Use proper FTS5 syntax with bm25 ranking
-	sqlQuery := `
-        SELECT 
-						article_id,
-            title, 
-            entity, 
-            section, 
-            text,
-            bm25(search_index)
-        FROM search_index
-        WHERE search_index MATCH ? 
-        ORDER BY bm25(search_index)
-        LIMIT ?`
+func (h *DBHandler) initializeDB() error {
+	queries := []string{
+		// Create 'articles' table
+		`CREATE TABLE IF NOT EXISTS articles (
+			id INTEGER PRIMARY KEY,
+			title TEXT NOT NULL,
+			entity TEXT NOT NULL
+		)`,
 
-	// Add wildcards to search terms for partial matching
-	searchQuery := fmt.Sprintf("%s*", query)
+		// Create 'sections' table with foreign key to 'articles'
+		`CREATE TABLE IF NOT EXISTS sections (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			article_id INTEGER,
+			sub TEXT,
+			pow INTEGER,
+			FOREIGN KEY(article_id) REFERENCES articles(id)
+		)`,
+
+		// Create 'hashes' table for basic storage
+		`CREATE TABLE IF NOT EXISTS hashes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			hash TEXT UNIQUE NOT NULL,
+			text TEXT NOT NULL
+		)`,
+
+		// Create FTS5 virtual table for text search
+		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
+			hash,
+			text,
+			content='hashes',
+			content_rowid='id'
+		)`,
+
+		// Create 'content' table with foreign keys
+		`CREATE TABLE IF NOT EXISTS content (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			section_id INTEGER,
+			hash_id INTEGER NOT NULL,
+			FOREIGN KEY(section_id) REFERENCES sections(id),
+			FOREIGN KEY(hash_id) REFERENCES hashes(id)
+		)`,
+
+		// Create triggers to maintain FTS index
+		`CREATE TRIGGER IF NOT EXISTS hashes_ai AFTER INSERT ON hashes BEGIN
+			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
+		END`,
+
+		`CREATE TRIGGER IF NOT EXISTS hashes_ad AFTER DELETE ON hashes BEGIN
+			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
+		END`,
+
+		`CREATE TRIGGER IF NOT EXISTS hashes_au AFTER UPDATE ON hashes BEGIN
+			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
+			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
+		END`,
+	}
+
+	for _, query := range queries {
+		if _, err := h.db.Exec(query); err != nil {
+			return fmt.Errorf("error executing query %s: %v", query, err)
+		}
+	}
+
+	return nil
+}
+
+// SearchArticles performs a full-text search and returns the top results
+func (h *DBHandler) SearchArticles(searchQuery string, limit int) ([]SearchResult, error) {
+	sqlQuery := `
+		WITH matched_hashes AS (
+			SELECT rowid, text, bm25(hash_search) as relevance
+			FROM hash_search
+			WHERE hash_search MATCH ?
+			ORDER BY relevance
+			LIMIT ?
+		)
+		SELECT DISTINCT
+			a.id as article_id,
+			a.title,
+			a.entity,
+			s.sub as section,
+			mh.text
+		FROM matched_hashes mh
+		JOIN hashes h ON h.id = mh.rowid
+		JOIN content c ON c.hash_id = h.id
+		JOIN sections s ON s.id = c.section_id
+		JOIN articles a ON a.id = s.article_id
+		ORDER BY mh.relevance
+	`
 
 	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
 	if err != nil {
@@ -168,8 +239,13 @@ func (h *DBHandler) SearchArticles(query string, limit int) ([]SearchResult, err
 	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
-		var rank float64
-		if err := rows.Scan(&result.Article, &result.Title, &result.Entity, &result.Section, &result.Text, &rank); err != nil {
+		if err := rows.Scan(
+			&result.Article,
+			&result.Title,
+			&result.Entity,
+			&result.Section,
+			&result.Text,
+		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
 		}
 		results = append(results, result)
@@ -178,85 +254,25 @@ func (h *DBHandler) SearchArticles(query string, limit int) ([]SearchResult, err
 	return results, nil
 }
 
-func (h *DBHandler) initializeDB() error {
-	queries := []string{
-		// Create 'hashes' table
-		`CREATE TABLE IF NOT EXISTS hashes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        hash TEXT UNIQUE NOT NULL,
-        text TEXT NOT NULL
-    )`,
-
-		// Create 'articles' table
-		`CREATE TABLE IF NOT EXISTS articles (
-        id INTEGER PRIMARY KEY,
-        title TEXT NOT NULL,
-        entity TEXT NOT NULL
-    )`,
-
-		// Create 'sections' table with foreign key to 'articles'
-		`CREATE TABLE IF NOT EXISTS sections (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        article_id INTEGER,
-        sub TEXT,
-        pow INTEGER,
-        FOREIGN KEY(article_id) REFERENCES articles(id)
-    )`,
-
-		// Create 'content' table with foreign keys to 'sections' and 'hashes'
-		`CREATE TABLE IF NOT EXISTS content (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        section_id INTEGER,
-        hash_id INTEGER NOT NULL,
-        FOREIGN KEY(section_id) REFERENCES sections(id),
-        FOREIGN KEY(hash_id) REFERENCES hashes(id)
-    )`,
-
-		// Create new FTS table (Full Text Search)
-		`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-				article_id,
-        title,
-        entity,
-        section,
-        text
-    )`,
-		`CREATE TRIGGER IF NOT EXISTS content_ai_trigger AFTER INSERT ON content BEGIN
-    INSERT INTO search_index(article_id,title, entity, section, text)
-    SELECT 
-				a.id,
-        a.title,
-        a.entity,
-        s.sub,
-        h.text
-    FROM content c
-    JOIN sections s ON c.section_id = s.id
-    JOIN articles a ON s.article_id = a.id
-    JOIN hashes h ON c.hash_id = h.id
-    WHERE c.id = new.id;
-END`,
-	}
-	// Execute all queries
-	for _, query := range queries {
-		if _, err := h.db.Exec(query); err != nil {
-			return fmt.Errorf("error executing query %s: %v", query, err)
-		}
-	}
-
-	return nil
-}
-
 func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	sqlQuery := `
-        SELECT 
-            title, 
-            entity, 
-            section, 
-            article_id,
-            text,
-            bm25(search_index)
-        FROM search_index
-        WHERE article_id = ?
-        ORDER BY section NULLS FIRST, bm25(search_index)
+		SELECT 
+    	a.title AS article_title,
+			a.entity AS article_entity,
+    	s.sub AS section_title,
+    	h.text AS content
+		FROM 
+    	articles a
+		JOIN 
+    	sections s ON a.id = s.article_id
+		JOIN 
+    	content c ON s.id = c.section_id
+		JOIN 
+    	hashes h ON c.hash_id = h.id
+		WHERE 
+    	a.id = ?
+		ORDER BY 
+    	s.pow ASC, section_title;
     `
 
 	rows, err := h.db.Query(sqlQuery, articleID)
@@ -272,9 +288,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 			&result.Title,
 			&result.Entity,
 			&result.Section,
-			&result.Article,
 			&result.Text,
-			&result.BM25,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
 		}

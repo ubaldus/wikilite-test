@@ -2,7 +2,7 @@
 
         {{if .Results}}
             <h1 class="mb-4">{{(index .Results 0).Title}}</h1>
-            <p class="text-muted">Entity ID: {{(index .Results 0).Entity}}</p>
+            <p class="text-muted">Entity ID: <a href="https://www.wikidata.org/wiki/{{(index .Results 0).Entity}}">{{(index .Results 0).Entity}}</a></p>
             
             {{$currentSection := ""}}
             {{range .Results}}

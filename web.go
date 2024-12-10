@@ -46,7 +46,7 @@ func NewWebServer(db *DBHandler) (*WebServer, error) {
 func (s *WebServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		query := r.FormValue("query")
-		results, err := s.db.SearchArticles(query, 10)
+		results, err := s.db.SearchArticles(query, 20)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const Version = "0.0.6"
+const Version = "0.0.7"
 
 type Config struct {
 	importPath string // URL or file path to import from (https://dumps.wikimedia.org/other/enterprise_html/runs/...)
