@@ -1,3 +1,5 @@
+// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+
 package main
 
 import (
@@ -7,53 +9,54 @@ import (
 	"strings"
 )
 
+const Version = "0.0.6"
+
 type Config struct {
-	importPath string // URL or file path to import from
-	dbPath     string // Path to SQLite database (optional)
+	importPath string // URL or file path to import from (https://dumps.wikimedia.org/other/enterprise_html/runs/...)
+	dbPath     string // Path to SQLite database
 	web        bool   // Enable web interface
-	host       string // Web server host
-	port       int    // Web server port
+	webHost    string // Web server host
+	webPort    int    // Web server port
 }
 
 var (
-	db  *DBHandler
-	cfg *Config
+	db      *DBHandler
+	options *Config
 )
 
 func parseConfig() (*Config, error) {
-	cfg := &Config{}
+	options := &Config{}
 
-	flag.StringVar(&cfg.importPath, "import", "", "URL or file path to import")
-	flag.StringVar(&cfg.dbPath, "db", "", "SQLite database path (optional, if not specified outputs JSON)")
-	flag.BoolVar(&cfg.web, "web", false, "Enable web interface")
-	flag.StringVar(&cfg.host, "host", "localhost", "Web server host")
-	flag.IntVar(&cfg.port, "port", 8080, "Web server port")
+	flag.StringVar(&options.dbPath, "db", "", "SQLite database path")
+	flag.StringVar(&options.importPath, "import", "", "URL or file path to import (default to jsonl if no db is provided)")
+	flag.BoolVar(&options.web, "web", false, "Enable web interface")
+	flag.StringVar(&options.webHost, "web-host", "localhost", "Web server host")
+	flag.IntVar(&options.webPort, "web-port", 35248, "Web server port")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s --import <url/file> [--db file] [--web] [--host host] [--port port]\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Options:\n")
-		fmt.Fprintf(os.Stderr, "  --import <url/file>  URL or file path to import\n")
-		fmt.Fprintf(os.Stderr, "  --db <file>         SQLite database path\n")
-		fmt.Fprintf(os.Stderr, "  --web              Enable web interface\n")
-		fmt.Fprintf(os.Stderr, "  --host             Web server host (default: localhost)\n")
-		fmt.Fprintf(os.Stderr, "  --port             Web server port (default: 8080)\n")
+		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")
+		fmt.Println("Version:", Version)
+		fmt.Printf("Usage: %s [options]\n", os.Args[0])
+		fmt.Println("Options:\n")
+		flag.PrintDefaults()
+		fmt.Println()
 	}
 
 	flag.Parse()
 
-	return cfg, nil
+	return options, nil
 }
 
 func main() {
-	cfg, err := parseConfig()
+	options, err := parseConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	if cfg.dbPath != "" {
-		db, err = NewDBHandler(cfg.dbPath)
+	if options.dbPath != "" {
+		db, err = NewDBHandler(options.dbPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -62,11 +65,11 @@ func main() {
 	}
 
 	// Process import
-	if cfg.importPath != "" {
-		if strings.HasPrefix(cfg.importPath, "http://") || strings.HasPrefix(cfg.importPath, "https://") {
-			err = downloadAndProcessFile(cfg.importPath)
+	if options.importPath != "" {
+		if strings.HasPrefix(options.importPath, "http://") || strings.HasPrefix(options.importPath, "https://") {
+			err = downloadAndProcessFile(options.importPath)
 		} else {
-			err = processLocalFile(cfg.importPath)
+			err = processLocalFile(options.importPath)
 		}
 
 		if err != nil {
@@ -76,16 +79,21 @@ func main() {
 	}
 
 	// Start web server if requested
-	if cfg.web && db != nil {
+	if options.web && db != nil {
 		server, err := NewWebServer(db)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating web server: %v\n", err)
 			os.Exit(1)
 		}
 
-		if err := server.Start(cfg.host, cfg.port); err != nil {
+		if err := server.Start(options.webHost, options.webPort); err != nil {
 			fmt.Fprintf(os.Stderr, "Error starting web server: %v\n", err)
 			os.Exit(1)
 		}
+	}
+
+	if db == nil {
+		flag.Usage()
+		os.Exit(1)
 	}
 }

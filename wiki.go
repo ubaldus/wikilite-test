@@ -1,3 +1,5 @@
+// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+
 package main
 
 import (
@@ -366,7 +368,7 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 		ID:     identifier,
 	}
 
-	// If no database is configured, print JSON to stdout
+	// If db is not provided print JSON to stdout
 	if db == nil {
 		jsonData, err := json.Marshal(output)
 		if err != nil {
