@@ -29,10 +29,20 @@ type TextEntry struct {
 
 // SearchResult represents a single search result
 type SearchResult struct {
+	Article int
 	Title   string
 	Entity  string
 	Text    string
 	Section string
+}
+
+type ArticleResult struct {
+	Title   string
+	Entity  string
+	Section string
+	Text    string
+	Article int
+	BM25    float64
 }
 
 // NewDBHandler creates and initializes a new database connection
@@ -135,6 +145,7 @@ func (h *DBHandler) SearchArticles(query string, limit int) ([]SearchResult, err
 	// Use proper FTS5 syntax with bm25 ranking
 	sqlQuery := `
         SELECT 
+						article_id,
             title, 
             entity, 
             section, 
@@ -158,7 +169,7 @@ func (h *DBHandler) SearchArticles(query string, limit int) ([]SearchResult, err
 	for rows.Next() {
 		var result SearchResult
 		var rank float64
-		if err := rows.Scan(&result.Title, &result.Entity, &result.Section, &result.Text, &rank); err != nil {
+		if err := rows.Scan(&result.Article, &result.Title, &result.Entity, &result.Section, &result.Text, &rank); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
 		}
 		results = append(results, result)
@@ -203,14 +214,16 @@ func (h *DBHandler) initializeDB() error {
 
 		// Create new FTS table (Full Text Search)
 		`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+				article_id,
         title,
         entity,
         section,
         text
     )`,
 		`CREATE TRIGGER IF NOT EXISTS content_ai_trigger AFTER INSERT ON content BEGIN
-    INSERT INTO search_index(title, entity, section, text)
+    INSERT INTO search_index(article_id,title, entity, section, text)
     SELECT 
+				a.id,
         a.title,
         a.entity,
         s.sub,
@@ -230,4 +243,43 @@ END`,
 	}
 
 	return nil
+}
+
+func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
+	sqlQuery := `
+        SELECT 
+            title, 
+            entity, 
+            section, 
+            article_id,
+            text,
+            bm25(search_index)
+        FROM search_index
+        WHERE article_id = ?
+        ORDER BY section NULLS FIRST, bm25(search_index)
+    `
+
+	rows, err := h.db.Query(sqlQuery, articleID)
+	if err != nil {
+		return nil, fmt.Errorf("article query error: %v", err)
+	}
+	defer rows.Close()
+
+	var results []ArticleResult
+	for rows.Next() {
+		var result ArticleResult
+		if err := rows.Scan(
+			&result.Title,
+			&result.Entity,
+			&result.Section,
+			&result.Article,
+			&result.Text,
+			&result.BM25,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning result: %v", err)
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
 }

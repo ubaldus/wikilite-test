@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 )
 
 //go:embed templates/*
@@ -62,9 +63,34 @@ func (s *WebServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	s.template.ExecuteTemplate(w, "search.html", nil)
 }
 
+func (s *WebServer) handleArticle(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		value := r.FormValue("id")
+		id, err := strconv.Atoi(value)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		results, err := s.db.GetArticle(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		data := struct {
+			Results []ArticleResult
+		}{
+			Results: results,
+		}
+
+		s.template.ExecuteTemplate(w, "article.html", data)
+	}
+}
+
 func (s *WebServer) Start(host string, port int) error {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	http.HandleFunc("/", s.handleSearch)
+	http.HandleFunc("/article", s.handleArticle)
 	fmt.Printf("Starting web server at http://%s/\n", addr)
 	return http.ListenAndServe(addr, nil)
 }
