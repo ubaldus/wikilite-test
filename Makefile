@@ -1,7 +1,7 @@
 .PHONY: clean test lint wikilite release-dry-run release
 
 PACKAGE_NAME := github.com/eja/wikilite
-GOLANG_CROSS_VERSION := v1.20
+GOLANG_CROSS_VERSION := v1.22.2
 GOPATH ?= '$(HOME)/go'
 
 all: lint wikilite

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "0.0.12"
+const Version = "0.0.13"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -23,6 +23,9 @@ type Config struct {
 	aiModelEmbedding string
 	aiModelLLM       string
 	aiUrl            string
+	qdrantHost       string
+	qdrantPort       int
+	qdrantCollection string
 }
 
 var (
@@ -42,6 +45,9 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.web, "web", false, "Enable web interface")
 	flag.StringVar(&options.webHost, "web-host", "localhost", "Web server host")
 	flag.IntVar(&options.webPort, "web-port", 35248, "Web server port")
+	flag.StringVar(&options.qdrantHost, "qdrant-host", "localhost", "Qdrant server host")
+	flag.IntVar(&options.qdrantPort, "qdrant-port", 6334, "Qdrant server port")
+	flag.StringVar(&options.qdrantCollection, "qdrant-collection", "wikilite", "Qdrant collection")
 
 	flag.Usage = func() {
 		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")
