@@ -5,11 +5,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
 
-const Version = "0.0.9"
+const Version = "0.0.11"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -59,26 +60,15 @@ func parseConfig() (*Config, error) {
 func main() {
 	options, err := parseConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-		flag.Usage()
-		os.Exit(1)
+		log.Fatalf("Error parsing command line: %v\n\n", err)
 	}
 
 	if options.dbPath != "" {
 		db, err = NewDBHandler(options.dbPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			log.Fatalf("Error initializing database: %v\n", err)
 		}
 		defer db.Close()
-	}
-
-	if options.ai {
-		_, err := aiInstruct("ping")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error contacting the AI engine: %v\n", err)
-			os.Exit(1)
-		}
 	}
 
 	if options.importPath != "" {
@@ -87,23 +77,33 @@ func main() {
 		} else {
 			err = processLocalFile(options.importPath)
 		}
-
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error processing import: %v\n", err)
-			os.Exit(1)
+			log.Fatalf("Error processing import: %v\n", err)
 		}
 	}
 
-	if options.web && db != nil {
+	if options.ai {
+		if db == nil {
+			log.Fatalf("DB is mandatory: %v\n", err)
+		}
+		err = db.ProcessEmbeddings()
+		if err != nil {
+			log.Fatalf("Error processing embeddings: %v\n", err)
+		}
+	}
+
+	if options.web {
+		if db == nil {
+			log.Fatalf("DB is mandatory: %v\n", err)
+		}
+
 		server, err := NewWebServer(db)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating web server: %v\n", err)
-			os.Exit(1)
+			log.Fatalf("Error creating web server: %v\n", err)
 		}
 
 		if err := server.Start(options.webHost, options.webPort); err != nil {
-			fmt.Fprintf(os.Stderr, "Error starting web server: %v\n", err)
-			os.Exit(1)
+			log.Fatalf("Error starting web server: %v\n", err)
 		}
 	}
 

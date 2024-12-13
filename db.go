@@ -4,8 +4,11 @@ package main
 
 import (
 	"database/sql"
+	"encoding/binary"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
+	"log"
+	"math"
 )
 
 // DBHandler manages database operations
@@ -162,7 +165,8 @@ func (h *DBHandler) initializeDB() error {
 		`CREATE TABLE IF NOT EXISTS hashes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			hash TEXT UNIQUE NOT NULL,
-			text TEXT NOT NULL
+			text TEXT NOT NULL,
+			vectors BLOB
 		)`,
 
 		// Create FTS5 virtual table for text search
@@ -296,4 +300,73 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	}
 
 	return results, nil
+}
+
+func Float32ToBlob(floats []float32) ([]byte, error) {
+	bytes := make([]byte, len(floats)*4) // 4 bytes per float32
+	for i, float := range floats {
+		binary.LittleEndian.PutUint32(bytes[i*4:(i+1)*4], uint32(math.Float32bits(float)))
+	}
+	return bytes, nil
+}
+
+func BlobToFloat32(data []byte) ([]float32, error) {
+	if len(data)%4 != 0 {
+		return nil, fmt.Errorf("length of input bytes is not a multiple of 4")
+	}
+	numFloats := len(data) / 4
+	floats := make([]float32, numFloats)
+
+	for i := 0; i < numFloats; i++ {
+		bits := binary.LittleEndian.Uint32(data[i*4 : (i+1)*4])
+		floats[i] = math.Float32frombits(bits)
+	}
+
+	return floats, nil
+}
+
+func (h *DBHandler) ProcessEmbeddings() error {
+	for {
+		sqlQuery := `SELECT hash, text FROM hashes WHERE vectors IS NULL LIMIT 1;`
+		row := h.db.QueryRow(sqlQuery)
+
+		var hash string
+		var text string
+		err := row.Scan(&hash, &text)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				// No more rows with NULL vectors, exit gracefully
+				return nil
+			}
+			return fmt.Errorf("error fetching next row: %w", err)
+		}
+
+		log.Printf("Processing embeddings for %s", hash)
+		embeddings, err := aiEmbeddings(text)
+		if err != nil {
+			return fmt.Errorf("embeddings generation error: %w", err)
+		}
+
+		blob, err := Float32ToBlob(embeddings)
+		if err != nil {
+			return fmt.Errorf("error converting embeddings to blob: %w", err)
+		}
+
+		tx, err := h.db.Begin()
+		if err != nil {
+			return fmt.Errorf("failed to start transaction: %w", err)
+		}
+		defer tx.Rollback() // Rollback if we don't commit
+
+		updateQuery := `UPDATE hashes SET vectors = ? WHERE hash = ?;`
+		_, err = tx.Exec(updateQuery, blob, hash)
+		if err != nil {
+			return fmt.Errorf("embeddings update error: %w", err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
+
+	}
 }

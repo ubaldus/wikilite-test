@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"log"
 	"net/http"
 	"strconv"
 )
@@ -108,6 +109,6 @@ func (s *WebServer) Start(host string, port int) error {
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(assetsDir("assets/static")))))
 
 	addr := fmt.Sprintf("%s:%d", host, port)
-	fmt.Printf("Starting web server at http://%s/\n", addr)
+	log.Printf("Starting web server at http://%s/\n", addr)
 	return http.ListenAndServe(addr, nil)
 }

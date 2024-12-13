@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"golang.org/x/net/html"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -163,9 +164,9 @@ func processTarArchive(tarReader *tar.Reader) error {
 		}
 
 		if header.Typeflag == tar.TypeReg {
-			fmt.Fprintf(os.Stderr, "Processing file: %s\n", header.Name)
+			log.Printf("Processing file: %s\n", header.Name)
 			if err := processJSONLFile(tarReader); err != nil {
-				fmt.Fprintf(os.Stderr, "Error processing file %s: %v\n", header.Name, err)
+				log.Printf("Error processing file %s: %v\n", header.Name, err)
 				continue // Continue with next file even if this one fails
 			}
 		}
@@ -222,13 +223,13 @@ func processJSONLFile(reader io.Reader) error {
 		}
 
 		if article.ArticleBody.HTML == nil {
-			fmt.Fprintf(os.Stderr, "Debug: article_body.html is empty or not present in this record")
+			log.Println("Debug: article_body.html is empty or not present in this record")
 			continue
 		}
 
 		var htmlContent string
 		if err := json.Unmarshal(article.ArticleBody.HTML, &htmlContent); err != nil {
-			fmt.Fprintf(os.Stderr, "Error unmarshaling article_body.html: %v\n", err)
+			log.Printf("Error unmarshaling article_body.html: %v\n", err)
 			continue
 		}
 
@@ -236,10 +237,10 @@ func processJSONLFile(reader io.Reader) error {
 
 		if output != nil && db != nil {
 			if err := db.SaveArticle(*output); err != nil {
-				fmt.Fprintf(os.Stderr, "Error saving to database: %v\n", err)
+				log.Printf("Error saving to database: %v\n", err)
 				continue
 			}
-			fmt.Fprintf(os.Stderr, "Saved article %d to database\n", article.Identifier)
+			log.Printf("Saved article %d to database\n", article.Identifier)
 		}
 	}
 	return nil
@@ -264,7 +265,7 @@ func hasExternalLink(node *html.Node) bool {
 func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle string, identifier int) *OutputArticle {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing HTML: %v\n", err)
+		log.Printf("Error parsing HTML: %v\n", err)
 		return nil
 	}
 
@@ -350,7 +351,7 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 	if db == nil {
 		jsonData, err := json.Marshal(output)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
+			log.Printf("Error marshaling JSON: %v\n", err)
 			return nil
 		}
 		fmt.Println(string(jsonData))
@@ -367,25 +368,26 @@ func processLiElement(node *html.Node, lastHeading *string, power *int, groupedI
 	processTextElementWithText(textContent, lastHeading, power, groupedItems)
 }
 func processTextElementWithText(textContent string, lastHeading *string, power *int, groupedItems map[string]map[string]interface{}) {
-	if strings.TrimSpace(textContent) != "" {
-		subKey := *lastHeading
-		if subKey == "" {
-			subKey = "" // Explicitly set for clarity
-		}
-
-		// Initialize the group if it doesn't exist
-		if _, exists := groupedItems[subKey]; !exists {
-			groupedItems[subKey] = map[string]interface{}{
-				"sub":  *lastHeading, // Keep the actual heading (can be empty)
-				"pow":  *power,
-				"text": []string{},
-			}
-		}
-		if textContent != *lastHeading {
-			groupedItems[subKey]["text"] = append(groupedItems[subKey]["text"].([]string), textContent)
-		}
-
+	trimmedText := strings.TrimSpace(textContent)
+	if trimmedText == "" {
+		return
 	}
+	subKey := *lastHeading
+	if subKey == "" {
+		subKey = "" // Explicitly set for clarity
+	}
+
+	if _, exists := groupedItems[subKey]; !exists {
+		groupedItems[subKey] = map[string]interface{}{
+			"sub":  *lastHeading, // Keep the actual heading (can be empty)
+			"pow":  *power,
+			"text": []string{},
+		}
+	}
+	if trimmedText != *lastHeading {
+		groupedItems[subKey]["text"] = append(groupedItems[subKey]["text"].([]string), trimmedText)
+	}
+
 }
 
 func processTextElement(node *html.Node, lastHeading *string, power *int, groupedItems map[string]map[string]interface{}) {
@@ -399,6 +401,10 @@ func collectTextFromNode(node *html.Node) string {
 	if node.Type == html.TextNode {
 		textContent += node.Data
 	} else if node.Type == html.ElementNode {
+		switch node.Data {
+		case "style", "script", "math", "table":
+			return textContent // Skip these elements
+		}
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
 			textContent += collectTextFromNode(c)
 		}
