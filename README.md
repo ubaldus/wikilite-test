@@ -10,11 +10,9 @@ Wikilite is a SQLite database of Wikipedia articles, indexed with FTS5 for fast 
 ## Getting Started
 1. **Clone the repository**: `git clone https://github.com/eja/wikilite.git`
 2. **Build the Wikilite binary**: `make`
-3. **Import Wikipedia data**: `./wikilite --import <url>`
+3. **Import Wikipedia data**: `./wikilite --import <url> --db <file>`
 
 ## Usage
-### Command-line Interface
-* **Search for articles**: `./wikilite --search "your search query"`
 
 ### Web Interface
 1. **Start the web server**: `./wikilite --web --db <file>`

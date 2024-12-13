@@ -262,6 +262,23 @@ func hasExternalLink(node *html.Node) bool {
 	return false
 }
 
+func collectTextFromNode(node *html.Node) string {
+	var textContent string
+
+	if node.Type == html.TextNode {
+		textContent += node.Data
+	} else if node.Type == html.ElementNode {
+		switch node.Data {
+		case "style", "script", "math", "table":
+			return textContent // Skip these elements
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			textContent += collectTextFromNode(c)
+		}
+	}
+	return textContent
+}
+
 func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle string, identifier int) *OutputArticle {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
@@ -271,7 +288,8 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 
 	var lastHeading string
 	var power int
-	groupedItems := make(map[string]map[string]interface{}) // Group by `sub`
+
+	groupedItems := []map[string]interface{}{}
 
 	var extractText func(*html.Node)
 	extractText = func(n *html.Node) {
@@ -297,9 +315,9 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 					}
 				}
 				// Process valid li
-				processLiElement(n, &lastHeading, &power, groupedItems)
+				processLiElement(n, &lastHeading, &power, &groupedItems)
 			case "p":
-				processTextElement(n, &lastHeading, &power, groupedItems)
+				processTextElement(n, &lastHeading, &power, &groupedItems)
 			case "h1", "h2", "h3", "h4", "h5", "h6":
 				textContent := collectTextFromNode(n)
 				if strings.TrimSpace(textContent) != "" {
@@ -315,6 +333,7 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 	extractText(doc)
 
 	var items []map[string]interface{}
+
 	for _, item := range groupedItems {
 		// Get the text array and ensure it's not empty
 		texts := item["text"].([]string)
@@ -336,6 +355,7 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 			})
 		}
 	}
+
 	if len(items) == 0 {
 		return nil
 	}
@@ -359,7 +379,7 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 	return &output
 }
 
-func processLiElement(node *html.Node, lastHeading *string, power *int, groupedItems map[string]map[string]interface{}) {
+func processLiElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
 	textContent := collectTextFromNode(node)
 	if strings.TrimSpace(textContent) != "" {
 		// Add bullet point
@@ -367,7 +387,8 @@ func processLiElement(node *html.Node, lastHeading *string, power *int, groupedI
 	}
 	processTextElementWithText(textContent, lastHeading, power, groupedItems)
 }
-func processTextElementWithText(textContent string, lastHeading *string, power *int, groupedItems map[string]map[string]interface{}) {
+
+func processTextElementWithText(textContent string, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
 	trimmedText := strings.TrimSpace(textContent)
 	if trimmedText == "" {
 		return
@@ -377,37 +398,28 @@ func processTextElementWithText(textContent string, lastHeading *string, power *
 		subKey = "" // Explicitly set for clarity
 	}
 
-	if _, exists := groupedItems[subKey]; !exists {
-		groupedItems[subKey] = map[string]interface{}{
+	// Check if a group already exists for the current subKey
+	found := false
+	for i, item := range *groupedItems {
+		if item["sub"] == subKey {
+			// Append text to the existing group
+			(*groupedItems)[i]["text"] = append((*groupedItems)[i]["text"].([]string), trimmedText)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Create a new group if no existing group for the subkey exists
+		*groupedItems = append(*groupedItems, map[string]interface{}{
 			"sub":  *lastHeading, // Keep the actual heading (can be empty)
 			"pow":  *power,
-			"text": []string{},
-		}
+			"text": []string{trimmedText},
+		})
 	}
-	if trimmedText != *lastHeading {
-		groupedItems[subKey]["text"] = append(groupedItems[subKey]["text"].([]string), trimmedText)
-	}
-
 }
 
-func processTextElement(node *html.Node, lastHeading *string, power *int, groupedItems map[string]map[string]interface{}) {
+func processTextElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
 	textContent := collectTextFromNode(node)
 	processTextElementWithText(textContent, lastHeading, power, groupedItems)
-}
-
-func collectTextFromNode(node *html.Node) string {
-	var textContent string
-
-	if node.Type == html.TextNode {
-		textContent += node.Data
-	} else if node.Type == html.ElementNode {
-		switch node.Data {
-		case "style", "script", "math", "table":
-			return textContent // Skip these elements
-		}
-		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			textContent += collectTextFromNode(c)
-		}
-	}
-	return textContent
 }

@@ -124,6 +124,12 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 				return fmt.Errorf("error getting hash ID: %v", err)
 			}
 
+			// Increment pow in hashes table
+			_, err = tx.Exec("UPDATE hashes SET pow = pow + 1 WHERE id = ?", hashID)
+			if err != nil {
+				return fmt.Errorf("error updating hash pow: %v", err)
+			}
+
 			// Insert content with hash_id reference
 			_, err = tx.Exec(
 				"INSERT INTO content (section_id, hash_id) VALUES (?, ?)",
@@ -157,7 +163,7 @@ func (h *DBHandler) initializeDB() error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			article_id INTEGER,
 			sub TEXT,
-			pow INTEGER,
+			pow INTEGER DEFAULT 0,
 			FOREIGN KEY(article_id) REFERENCES articles(id)
 		)`,
 
@@ -166,6 +172,7 @@ func (h *DBHandler) initializeDB() error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			hash TEXT UNIQUE NOT NULL,
 			text TEXT NOT NULL,
+			pow INTEGER DEFAULT 0,
 			vectors BLOB
 		)`,
 
@@ -217,8 +224,6 @@ func (h *DBHandler) SearchArticles(searchQuery string, limit int) ([]SearchResul
 			SELECT rowid, text, bm25(hash_search) as relevance
 			FROM hash_search
 			WHERE hash_search MATCH ?
-			ORDER BY relevance
-			LIMIT ?
 		)
 		SELECT DISTINCT
 			a.id as article_id,
@@ -231,15 +236,17 @@ func (h *DBHandler) SearchArticles(searchQuery string, limit int) ([]SearchResul
 		JOIN content c ON c.hash_id = h.id
 		JOIN sections s ON s.id = c.section_id
 		JOIN articles a ON a.id = s.article_id
-		ORDER BY mh.relevance
+		ORDER BY h.pow ASC
+		LIMIT ?
 	`
 
-	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
+	rows, err := h.db.Query(sqlQuery, searchQuery, limit*5)
 	if err != nil {
 		return nil, fmt.Errorf("search error: %v", err)
 	}
 	defer rows.Close()
 
+	seenArticles := make(map[int]bool)
 	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
@@ -252,7 +259,13 @@ func (h *DBHandler) SearchArticles(searchQuery string, limit int) ([]SearchResul
 		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
 		}
-		results = append(results, result)
+		if _, exists := seenArticles[result.Article]; !exists {
+			results = append(results, result)
+			seenArticles[result.Article] = true
+			if len(results) >= limit {
+				break
+			}
+		}
 	}
 
 	return results, nil
@@ -276,7 +289,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 		WHERE 
     	a.id = ?
 		ORDER BY 
-    	s.pow ASC, section_title;
+    	c.id;
     `
 
 	rows, err := h.db.Query(sqlQuery, articleID)
