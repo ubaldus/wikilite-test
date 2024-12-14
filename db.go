@@ -4,51 +4,16 @@ package main
 
 import (
 	"database/sql"
-	"encoding/binary"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
 	"log"
-	"math"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
-// DBHandler manages database operations
 type DBHandler struct {
 	db *sql.DB
 }
 
-// Article output structure matching the JSON output
-type OutputArticle struct {
-	Title  string                   `json:"title"`
-	Entity string                   `json:"entity"`
-	Items  []map[string]interface{} `json:"items"`
-	ID     int                      `json:"id"`
-}
-
-// TextEntry represents the hash-text pairs in items
-type TextEntry struct {
-	Hash string `json:"hash"`
-	Text string `json:"text"`
-}
-
-// SearchResult represents a single search result
-type SearchResult struct {
-	Article int
-	Title   string
-	Entity  string
-	Text    string
-	Section string
-}
-
-type ArticleResult struct {
-	Title   string
-	Entity  string
-	Section string
-	Text    string
-	Article int
-	BM25    float64
-}
-
-// NewDBHandler creates and initializes a new database connection
 func NewDBHandler(dbPath string) (*DBHandler, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -64,7 +29,6 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 	return handler, nil
 }
 
-// SaveArticle stores an article and its content in the database
 func (h *DBHandler) SaveArticle(article OutputArticle) error {
 	tx, err := h.db.Begin()
 	if err != nil {
@@ -72,7 +36,6 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 	}
 	defer tx.Rollback()
 
-	// Insert article
 	_, err = tx.Exec(
 		"INSERT OR REPLACE INTO articles (id, title, entity) VALUES (?, ?, ?)",
 		article.ID, article.Title, article.Entity,
@@ -81,7 +44,6 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 		return fmt.Errorf("error inserting article: %v", err)
 	}
 
-	// Insert sections and their content
 	for _, item := range article.Items {
 		sub, _ := item["sub"].(string)
 		pow, _ := item["pow"].(int)
@@ -108,7 +70,6 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 			hash := entry["hash"]
 			text := entry["text"]
 
-			// Try to insert hash first, ignore if already exists
 			result, err = tx.Exec(
 				"INSERT OR IGNORE INTO hashes (hash, text) VALUES (?, ?)",
 				hash, text,
@@ -117,20 +78,17 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 				return fmt.Errorf("error inserting hash: %v", err)
 			}
 
-			// Get hash_id (whether newly inserted or existing)
 			var hashID int
 			err = tx.QueryRow("SELECT id FROM hashes WHERE hash = ?", hash).Scan(&hashID)
 			if err != nil {
 				return fmt.Errorf("error getting hash ID: %v", err)
 			}
 
-			// Increment pow in hashes table
 			_, err = tx.Exec("UPDATE hashes SET pow = pow + 1 WHERE id = ?", hashID)
 			if err != nil {
 				return fmt.Errorf("error updating hash pow: %v", err)
 			}
 
-			// Insert content with hash_id reference
 			_, err = tx.Exec(
 				"INSERT INTO content (section_id, hash_id) VALUES (?, ?)",
 				sectionID, hashID,
@@ -144,21 +102,18 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 	return tx.Commit()
 }
 
-// Close closes the database connection
 func (h *DBHandler) Close() error {
 	return h.db.Close()
 }
 
 func (h *DBHandler) initializeDB() error {
 	queries := []string{
-		// Create 'articles' table
 		`CREATE TABLE IF NOT EXISTS articles (
 			id INTEGER PRIMARY KEY,
 			title TEXT NOT NULL,
 			entity TEXT NOT NULL
 		)`,
 
-		// Create 'sections' table with foreign key to 'articles'
 		`CREATE TABLE IF NOT EXISTS sections (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			article_id INTEGER,
@@ -167,7 +122,6 @@ func (h *DBHandler) initializeDB() error {
 			FOREIGN KEY(article_id) REFERENCES articles(id)
 		)`,
 
-		// Create 'hashes' table for basic storage
 		`CREATE TABLE IF NOT EXISTS hashes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			hash TEXT UNIQUE NOT NULL,
@@ -176,7 +130,6 @@ func (h *DBHandler) initializeDB() error {
 			vectors BLOB
 		)`,
 
-		// Create FTS5 virtual table for text search
 		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
 			hash,
 			text,
@@ -184,7 +137,6 @@ func (h *DBHandler) initializeDB() error {
 			content_rowid='id'
 		)`,
 
-		// Create 'content' table with foreign keys
 		`CREATE TABLE IF NOT EXISTS content (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			section_id INTEGER,
@@ -193,7 +145,6 @@ func (h *DBHandler) initializeDB() error {
 			FOREIGN KEY(hash_id) REFERENCES hashes(id)
 		)`,
 
-		// Create triggers to maintain FTS index
 		`CREATE TRIGGER IF NOT EXISTS hashes_ai AFTER INSERT ON hashes BEGIN
 			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
 		END`,
@@ -217,7 +168,6 @@ func (h *DBHandler) initializeDB() error {
 	return nil
 }
 
-// SearchArticles performs a full-text search and returns the top results
 func (h *DBHandler) SearchArticles(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
 		WITH matched_hashes AS (
@@ -315,29 +265,6 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	return results, nil
 }
 
-func Float32ToBlob(floats []float32) ([]byte, error) {
-	bytes := make([]byte, len(floats)*4) // 4 bytes per float32
-	for i, float := range floats {
-		binary.LittleEndian.PutUint32(bytes[i*4:(i+1)*4], uint32(math.Float32bits(float)))
-	}
-	return bytes, nil
-}
-
-func BlobToFloat32(data []byte) ([]float32, error) {
-	if len(data)%4 != 0 {
-		return nil, fmt.Errorf("length of input bytes is not a multiple of 4")
-	}
-	numFloats := len(data) / 4
-	floats := make([]float32, numFloats)
-
-	for i := 0; i < numFloats; i++ {
-		bits := binary.LittleEndian.Uint32(data[i*4 : (i+1)*4])
-		floats[i] = math.Float32frombits(bits)
-	}
-
-	return floats, nil
-}
-
 func (h *DBHandler) ProcessEmbeddings() error {
 	for {
 		sqlQuery := `SELECT hash, text FROM hashes WHERE vectors IS NULL LIMIT 1;`
@@ -348,7 +275,6 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		err := row.Scan(&hash, &text)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				// No more rows with NULL vectors, exit gracefully
 				return nil
 			}
 			return fmt.Errorf("error fetching next row: %w", err)
@@ -360,7 +286,7 @@ func (h *DBHandler) ProcessEmbeddings() error {
 			return fmt.Errorf("embeddings generation error: %w", err)
 		}
 
-		blob, err := Float32ToBlob(embeddings)
+		blob, err := float32ToBlob(embeddings)
 		if err != nil {
 			return fmt.Errorf("error converting embeddings to blob: %w", err)
 		}
@@ -369,7 +295,7 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		if err != nil {
 			return fmt.Errorf("failed to start transaction: %w", err)
 		}
-		defer tx.Rollback() // Rollback if we don't commit
+		defer tx.Rollback()
 
 		updateQuery := `UPDATE hashes SET vectors = ? WHERE hash = ?;`
 		_, err = tx.Exec(updateQuery, blob, hash)
@@ -380,6 +306,5 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
-
 	}
 }

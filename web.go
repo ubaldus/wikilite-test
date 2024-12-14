@@ -3,7 +3,6 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -13,24 +12,11 @@ import (
 	"strconv"
 )
 
-//go:embed assets
-var assets embed.FS
-
-// WebServer represents a web server
 type WebServer struct {
 	db       *DBHandler
 	template *template.Template
 }
 
-func assetsDir(path string) fs.FS {
-	subFS, err := fs.Sub(assets, path)
-	if err != nil {
-		panic(fmt.Errorf("failed to access embedded subdirectory %s: %w", path, err))
-	}
-	return subFS
-}
-
-// NewWebServer creates a new web server
 func NewWebServer(db *DBHandler) (*WebServer, error) {
 	tmpl, err := template.ParseFS(assets, "assets/templates/*")
 	if err != nil {
@@ -43,7 +29,6 @@ func NewWebServer(db *DBHandler) (*WebServer, error) {
 	}, nil
 }
 
-// handleSearch handles search requests
 func (s *WebServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		query := r.FormValue("query")
@@ -76,7 +61,6 @@ func (s *WebServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	s.template.ExecuteTemplate(w, "search.html", nil)
 }
 
-// handleArticle handles article requests
 func (s *WebServer) handleArticle(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		value := r.FormValue("id")
@@ -101,12 +85,16 @@ func (s *WebServer) handleArticle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Start starts the web server
 func (s *WebServer) Start(host string, port int) error {
 	http.HandleFunc("/", s.handleSearch)
 	http.HandleFunc("/article", s.handleArticle)
 
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(assetsDir("assets/static")))))
+	subFS, err := fs.Sub(assets, "assets/static")
+	if err != nil {
+		panic(fmt.Errorf("failed to access embedded subdirectory: %w", err))
+	}
+
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(subFS))))
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 	log.Printf("Starting web server at http://%s/\n", addr)

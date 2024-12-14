@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "0.0.13"
+const Version = "0.0.14"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -40,8 +40,8 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.aiModelLLM, "ai-model-llm", "gemma2", "AI LLM model")
 	flag.StringVar(&options.aiUrl, "ai-url", "http://localhost:11434/v1/", "AI base url")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
-	flag.StringVar(&options.dbPath, "db", "", "SQLite database path")
-	flag.StringVar(&options.importPath, "import", "", "URL or file path to import (default to jsonl if no db is provided)")
+	flag.StringVar(&options.dbPath, "db", "wikilite.db", "SQLite database path")
+	flag.StringVar(&options.importPath, "import", "", "URL or file path to import")
 	flag.BoolVar(&options.web, "web", false, "Enable web interface")
 	flag.StringVar(&options.webHost, "web-host", "localhost", "Web server host")
 	flag.IntVar(&options.webPort, "web-port", 35248, "Web server port")
@@ -69,19 +69,17 @@ func main() {
 		log.Fatalf("Error parsing command line: %v\n\n", err)
 	}
 
-	if options.dbPath != "" {
-		db, err = NewDBHandler(options.dbPath)
-		if err != nil {
-			log.Fatalf("Error initializing database: %v\n", err)
-		}
-		defer db.Close()
+	db, err = NewDBHandler(options.dbPath)
+	if err != nil {
+		log.Fatalf("Error initializing database: %v\n", err)
 	}
+	defer db.Close()
 
 	if options.importPath != "" {
 		if strings.HasPrefix(options.importPath, "http://") || strings.HasPrefix(options.importPath, "https://") {
-			err = downloadAndProcessFile(options.importPath)
+			err = wikiDownloadAndProcessFile(options.importPath)
 		} else {
-			err = processLocalFile(options.importPath)
+			err = wikiProcessLocalFile(options.importPath)
 		}
 		if err != nil {
 			log.Fatalf("Error processing import: %v\n", err)
@@ -89,9 +87,6 @@ func main() {
 	}
 
 	if options.ai {
-		if db == nil {
-			log.Fatalf("DB is mandatory: %v\n", err)
-		}
 		err = db.ProcessEmbeddings()
 		if err != nil {
 			log.Fatalf("Error processing embeddings: %v\n", err)
@@ -99,10 +94,6 @@ func main() {
 	}
 
 	if options.web {
-		if db == nil {
-			log.Fatalf("DB is mandatory: %v\n", err)
-		}
-
 		server, err := NewWebServer(db)
 		if err != nil {
 			log.Fatalf("Error creating web server: %v\n", err)
@@ -113,8 +104,4 @@ func main() {
 		}
 	}
 
-	if db == nil {
-		flag.Usage()
-		os.Exit(1)
-	}
 }

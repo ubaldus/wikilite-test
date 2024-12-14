@@ -5,67 +5,35 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/net/html"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"regexp"
-	"strconv"
 	"strings"
+
+	"golang.org/x/net/html"
 )
 
-func calculateHash(texts []string) string {
-	hasher := md5.New()
-	for _, text := range texts {
-		hasher.Write([]byte(text))
-	}
-	return hex.EncodeToString(hasher.Sum(nil))
-}
-
-func extractNumber(s string) int {
-	re := regexp.MustCompile(`\d+`)
-	match := re.FindString(s)
-	if match != "" {
-		num, err := strconv.Atoi(match)
-		if err != nil {
-			return 0
-		}
-		return num
-	}
-	return 0
-}
-
-type CombinedCloser struct {
+type WikiCombinedCloser struct {
 	gzipCloser io.Closer
 	respCloser io.Closer
 }
 
-func (cc CombinedCloser) Close() error {
+func (cc WikiCombinedCloser) Close() error {
 	if err := cc.gzipCloser.Close(); err != nil {
 		return err
 	}
 	return cc.respCloser.Close()
 }
 
-type ArticleBody struct {
-	HTML json.RawMessage `json:"html"`
+type WikiFileReader interface {
+	Read([]byte) (int, error)
+	Close() error
 }
 
-type Article struct {
-	MainEntity struct {
-		Identifier string `json:"identifier"`
-	} `json:"main_entity"`
-	Name        string      `json:"name"`
-	ArticleBody ArticleBody `json:"article_body"`
-	Identifier  int         `json:"identifier"`
-}
-
-func downloadAndExtractFile(url string) (io.ReadCloser, error) {
+func wikiDownloadAndExtractFile(url string) (io.ReadCloser, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("error downloading file: %v", err)
@@ -97,7 +65,7 @@ func downloadAndExtractFile(url string) (io.ReadCloser, error) {
 				io.Closer
 			}{
 				Reader: tarReader,
-				Closer: CombinedCloser{
+				Closer: WikiCombinedCloser{
 					gzipCloser: gzipReader,
 					respCloser: resp.Body,
 				},
@@ -108,7 +76,7 @@ func downloadAndExtractFile(url string) (io.ReadCloser, error) {
 	return nil, fmt.Errorf("no regular file found in tar archive")
 }
 
-func openAndExtractLocalFile(filePath string) (io.ReadCloser, error) {
+func wikiOpenAndExtractLocalFile(filePath string) (io.ReadCloser, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %v", err)
@@ -137,7 +105,7 @@ func openAndExtractLocalFile(filePath string) (io.ReadCloser, error) {
 				io.Closer
 			}{
 				Reader: tarReader,
-				Closer: CombinedCloser{
+				Closer: WikiCombinedCloser{
 					gzipCloser: gzipReader,
 					respCloser: file,
 				},
@@ -148,12 +116,7 @@ func openAndExtractLocalFile(filePath string) (io.ReadCloser, error) {
 	return nil, fmt.Errorf("no regular file found in tar archive")
 }
 
-type FileReader interface {
-	Read([]byte) (int, error)
-	Close() error
-}
-
-func processTarArchive(tarReader *tar.Reader) error {
+func wikiProcessTarArchive(tarReader *tar.Reader) error {
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -165,7 +128,7 @@ func processTarArchive(tarReader *tar.Reader) error {
 
 		if header.Typeflag == tar.TypeReg {
 			log.Printf("Processing file: %s\n", header.Name)
-			if err := processJSONLFile(tarReader); err != nil {
+			if err := wikiProcessJSONLFile(tarReader); err != nil {
 				log.Printf("Error processing file %s: %v\n", header.Name, err)
 				continue // Continue with next file even if this one fails
 			}
@@ -174,7 +137,7 @@ func processTarArchive(tarReader *tar.Reader) error {
 	return nil
 }
 
-func downloadAndProcessFile(url string) error {
+func wikiDownloadAndProcessFile(url string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("error downloading file: %v", err)
@@ -192,10 +155,10 @@ func downloadAndProcessFile(url string) error {
 	defer gzipReader.Close()
 
 	tarReader := tar.NewReader(gzipReader)
-	return processTarArchive(tarReader)
+	return wikiProcessTarArchive(tarReader)
 }
 
-func processLocalFile(filePath string) error {
+func wikiProcessLocalFile(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("error opening file: %v", err)
@@ -209,44 +172,38 @@ func processLocalFile(filePath string) error {
 	defer gzipReader.Close()
 
 	tarReader := tar.NewReader(gzipReader)
-	return processTarArchive(tarReader)
+	return wikiProcessTarArchive(tarReader)
 }
 
-func processJSONLFile(reader io.Reader) error {
+func wikiProcessJSONLFile(reader io.Reader) error {
 	jsonDecoder := json.NewDecoder(reader)
 	for {
-		var article Article
-		if err := jsonDecoder.Decode(&article); err == io.EOF {
+		var art InputArticle
+		if err := jsonDecoder.Decode(&art); err == io.EOF {
 			break
 		} else if err != nil {
 			return fmt.Errorf("error decoding JSONL: %v", err)
 		}
 
-		if article.ArticleBody.HTML == nil {
+		if art.ArticleBody.HTML == "" {
 			log.Println("Debug: article_body.html is empty or not present in this record")
 			continue
 		}
 
-		var htmlContent string
-		if err := json.Unmarshal(article.ArticleBody.HTML, &htmlContent); err != nil {
-			log.Printf("Error unmarshaling article_body.html: %v\n", err)
-			continue
-		}
-
-		output := ExtractContentFromHTML(htmlContent, article.MainEntity.Identifier, article.Name, article.Identifier)
+		output := wikiExtractContentFromHTML(art.ArticleBody.HTML, art.MainEntity.Identifier, art.Name, art.Identifier)
 
 		if output != nil && db != nil {
 			if err := db.SaveArticle(*output); err != nil {
 				log.Printf("Error saving to database: %v\n", err)
 				continue
 			}
-			log.Printf("Saved article %d to database\n", article.Identifier)
+			log.Printf("Saved article %d to database\n", art.Identifier)
 		}
 	}
 	return nil
 }
 
-func hasExternalLink(node *html.Node) bool {
+func wikiHasExternalLink(node *html.Node) bool {
 	if node.Type == html.ElementNode && node.Data == "a" {
 		for _, attr := range node.Attr {
 			if attr.Key == "class" && strings.Contains(attr.Val, "external") {
@@ -255,14 +212,14 @@ func hasExternalLink(node *html.Node) bool {
 		}
 	}
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		if hasExternalLink(c) {
+		if wikiHasExternalLink(c) {
 			return true
 		}
 	}
 	return false
 }
 
-func collectTextFromNode(node *html.Node) string {
+func wikiCollectTextFromNode(node *html.Node) string {
 	var textContent string
 
 	if node.Type == html.TextNode {
@@ -270,16 +227,22 @@ func collectTextFromNode(node *html.Node) string {
 	} else if node.Type == html.ElementNode {
 		switch node.Data {
 		case "style", "script", "math", "table":
-			return textContent // Skip these elements
+			return textContent
+		case "sup":
+			for _, attr := range node.Attr {
+				if attr.Key == "class" && strings.Contains(attr.Val, "reference") {
+					return textContent
+				}
+			}
 		}
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			textContent += collectTextFromNode(c)
+			textContent += wikiCollectTextFromNode(c)
 		}
 	}
 	return textContent
 }
 
-func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle string, identifier int) *OutputArticle {
+func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTitle string, identifier int) *OutputArticle {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
 		log.Printf("Error parsing HTML: %v\n", err)
@@ -296,16 +259,16 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 		if n.Type == html.ElementNode {
 			switch n.Data {
 			case "table", "style", "script", "math":
-				return // Skip these elements
+				return
 			case "sup":
 				for _, attr := range n.Attr {
 					if attr.Key == "class" && strings.Contains(attr.Val, "reference") {
-						return // Skip reference sup elements
+						return
 					}
 				}
 			case "li":
-				if hasExternalLink(n) {
-					return // Skip li with external link
+				if wikiHasExternalLink(n) {
+					return
 				}
 				if n.Parent != nil && (n.Parent.Data == "ul" || n.Parent.Data == "ol") {
 					for _, attr := range n.Parent.Attr {
@@ -314,15 +277,14 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 						}
 					}
 				}
-				// Process valid li
-				processLiElement(n, &lastHeading, &power, &groupedItems)
+				wikiProcessLiElement(n, &lastHeading, &power, &groupedItems)
 			case "p":
-				processTextElement(n, &lastHeading, &power, &groupedItems)
+				wikiProcessTextElement(n, &lastHeading, &power, &groupedItems)
 			case "h1", "h2", "h3", "h4", "h5", "h6":
-				textContent := collectTextFromNode(n)
+				textContent := wikiCollectTextFromNode(n)
 				if strings.TrimSpace(textContent) != "" {
 					lastHeading = textContent
-					power = extractNumber(n.Data)
+					power = extractNumberFromString(n.Data)
 				}
 			}
 		}
@@ -335,10 +297,8 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 	var items []map[string]interface{}
 
 	for _, item := range groupedItems {
-		// Get the text array and ensure it's not empty
 		texts := item["text"].([]string)
 		if len(texts) > 0 {
-			// Create a new "text" array with hash-text objects
 			var textEntries []map[string]string
 			for _, text := range texts {
 				textEntries = append(textEntries, map[string]string{
@@ -347,11 +307,10 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 				})
 			}
 
-			// Add the modified item to the final output
 			items = append(items, map[string]interface{}{
 				"sub":  item["sub"],
 				"pow":  item["pow"],
-				"text": textEntries, // Replace the plain text array with hash-text objects
+				"text": textEntries,
 			})
 		}
 	}
@@ -366,29 +325,19 @@ func ExtractContentFromHTML(htmlContent string, articleID string, articleTitle s
 		Items:  items,
 		ID:     identifier,
 	}
-
-	// If db is not provided print JSON to stdout
-	if db == nil {
-		jsonData, err := json.Marshal(output)
-		if err != nil {
-			log.Printf("Error marshaling JSON: %v\n", err)
-			return nil
-		}
-		fmt.Println(string(jsonData))
-	}
 	return &output
 }
 
-func processLiElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
-	textContent := collectTextFromNode(node)
+func wikiProcessLiElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
+	textContent := wikiCollectTextFromNode(node)
 	if strings.TrimSpace(textContent) != "" {
 		// Add bullet point
 		textContent = "\u2022 " + textContent
 	}
-	processTextElementWithText(textContent, lastHeading, power, groupedItems)
+	wikiProcessTextElementWithText(textContent, lastHeading, power, groupedItems)
 }
 
-func processTextElementWithText(textContent string, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
+func wikiProcessTextElementWithText(textContent string, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
 	trimmedText := strings.TrimSpace(textContent)
 	if trimmedText == "" {
 		return
@@ -398,11 +347,9 @@ func processTextElementWithText(textContent string, lastHeading *string, power *
 		subKey = "" // Explicitly set for clarity
 	}
 
-	// Check if a group already exists for the current subKey
 	found := false
 	for i, item := range *groupedItems {
 		if item["sub"] == subKey {
-			// Append text to the existing group
 			(*groupedItems)[i]["text"] = append((*groupedItems)[i]["text"].([]string), trimmedText)
 			found = true
 			break
@@ -410,16 +357,15 @@ func processTextElementWithText(textContent string, lastHeading *string, power *
 	}
 
 	if !found {
-		// Create a new group if no existing group for the subkey exists
 		*groupedItems = append(*groupedItems, map[string]interface{}{
-			"sub":  *lastHeading, // Keep the actual heading (can be empty)
+			"sub":  *lastHeading,
 			"pow":  *power,
 			"text": []string{trimmedText},
 		})
 	}
 }
 
-func processTextElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
-	textContent := collectTextFromNode(node)
-	processTextElementWithText(textContent, lastHeading, power, groupedItems)
+func wikiProcessTextElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
+	textContent := wikiCollectTextFromNode(node)
+	wikiProcessTextElementWithText(textContent, lastHeading, power, groupedItems)
 }
