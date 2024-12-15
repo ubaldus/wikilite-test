@@ -120,28 +120,11 @@ func qdrantInit(host string, port int, collectionName string, embeddingSize int)
 	return handler, nil
 }
 
-func qdrantProcessHashMap(client qdrant.PointsClient, collectionName string, hashMap map[string][]float32) error {
-	for hash, embedding := range hashMap {
-		exists, err := qdrantCheckIfHashExists(client, collectionName, hash)
-		if err != nil {
-			return fmt.Errorf("failed to check if hash exists: %w", err)
-		}
-		if !exists {
-			err = qdrantUpsertPoint(client, collectionName, hash, embedding)
-			if err != nil {
-				return fmt.Errorf("failed to upsert point: %w", err)
-			}
-			log.Printf("Upserted point with hash '%s'\n", hash)
-		}
-	}
-	return nil
-}
-
-func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []float32) ([]string, []float64, error) {
+func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []float32, limit int) ([]string, []float64, error) {
 	ctx := context.Background()
 	resp, err := client.Search(ctx, &qdrant.SearchPoints{
 		CollectionName: collectionName,
-		Limit:          10,
+		Limit:          uint64(limit),
 		Vector:         vector,
 		WithPayload: &qdrant.WithPayloadSelector{
 			SelectorOptions: &qdrant.WithPayloadSelector_Enable{

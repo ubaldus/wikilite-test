@@ -13,18 +13,16 @@ import (
 )
 
 type WebServer struct {
-	db       *DBHandler
 	template *template.Template
 }
 
-func NewWebServer(db *DBHandler) (*WebServer, error) {
+func NewWebServer() (*WebServer, error) {
 	tmpl, err := template.ParseFS(assets, "assets/templates/*")
 	if err != nil {
 		return nil, fmt.Errorf("error parsing templates: %v", err)
 	}
 
 	return &WebServer{
-		db:       db,
 		template: tmpl,
 	}, nil
 }
@@ -32,7 +30,7 @@ func NewWebServer(db *DBHandler) (*WebServer, error) {
 func (s *WebServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		query := r.FormValue("query")
-		results, err := search(query, s.db)
+		results, err := search(query, db)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -70,7 +68,7 @@ func (s *WebServer) handleArticle(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		results, err := s.db.GetArticle(id)
+		results, err := db.GetArticle(id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

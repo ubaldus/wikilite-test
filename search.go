@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math"
 	"sort"
 )
@@ -32,8 +31,6 @@ func searchCalculatePower(titles []SearchResult, contents []SearchResult) []int 
 		}
 	}
 
-	fmt.Println(minPower, maxPower)
-
 	if maxPower < 0 {
 		maxPower *= -1
 	}
@@ -41,18 +38,12 @@ func searchCalculatePower(titles []SearchResult, contents []SearchResult) []int 
 		minPower *= -1
 	}
 
-	fmt.Println(minPower, maxPower)
-
 	for _, result := range titles {
 		articleCounts[result.Article] += minPower + maxPower
-		fmt.Println(result.Article, result.Power, result.Type, result.Title)
 	}
 	for _, result := range contents {
 		articleCounts[result.Article] += minPower
-		fmt.Println(result.Article, result.Power, result.Type, result.Title)
 	}
-
-	fmt.Println(articleCounts)
 
 	pairs := make([]Pair, 0, len(articleCounts))
 	for k, v := range articleCounts {
@@ -68,7 +59,6 @@ func searchCalculatePower(titles []SearchResult, contents []SearchResult) []int 
 		sortedArticles = append(sortedArticles, pair.Key)
 	}
 
-	fmt.Println(sortedArticles)
 	return sortedArticles
 }
 
@@ -90,15 +80,14 @@ func search(query string, db *DBHandler) ([]SearchResult, error) {
 		articleMap[res.Article] = res
 	}
 	for _, res := range contents {
-		if _, found := articleMap[res.Article]; !found { // Avoid duplicates
+		if _, found := articleMap[res.Article]; !found {
 			articleMap[res.Article] = res
 		}
 	}
 
-	// Build the final result slice using the sorted article IDs
 	results := make([]SearchResult, 0, len(articlePower))
 	for _, articleID := range articlePower {
-		if res, found := articleMap[articleID]; found { // Only append results if they're in the map
+		if res, found := articleMap[articleID]; found {
 			results = append(results, res)
 		}
 

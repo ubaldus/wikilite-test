@@ -17,7 +17,7 @@ func aiInstruct(input string) (output string, err error) {
 		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(input),
 		}),
-		Model: openai.F(options.aiModelLLM),
+		Model: openai.F(options.aiLlmModel),
 	})
 	if err != nil {
 		return "", err
@@ -31,7 +31,7 @@ func aiEmbeddings(input string) (output []float32, err error) {
 		option.WithBaseURL(options.aiUrl),
 	)
 	response, err := client.Embeddings.New(context.TODO(), openai.EmbeddingNewParams{
-		Model:          openai.F(options.aiModelEmbedding),
+		Model:          openai.F(options.aiEmbeddingModel),
 		Input:          openai.F[openai.EmbeddingNewParamsInputUnion](shared.UnionString(input)),
 		EncodingFormat: openai.F(openai.EmbeddingNewParamsEncodingFormatFloat),
 	})

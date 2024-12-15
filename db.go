@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"sort"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -443,6 +444,83 @@ func (h *DBHandler) searchTitle(searchQuery string, limit int) ([]SearchResult, 
 		result.Type = "T"
 		results = append(results, result)
 	}
+
+	return results, nil
+}
+
+func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]SearchResult, error) {
+	if len(hashes) != len(scores) {
+		return nil, fmt.Errorf("hashes and scores arrays must have the same length")
+	}
+
+	hashScoreMap := make(map[string]float64, len(hashes))
+	for i, hash := range hashes {
+		hashScoreMap[hash] = scores[i]
+	}
+
+	hashString := ""
+	for i, hash := range hashes {
+		if i > 0 {
+			hashString += ", "
+		}
+		hashString += "'" + hash + "'"
+	}
+
+	sqlQuery := fmt.Sprintf(`
+    SELECT DISTINCT
+      a.id as article_id,
+      a.title,
+      a.entity,
+      s.sub as section,
+      h.text,
+      h.hash
+    FROM hashes h
+    JOIN content c ON c.hash_id = h.id
+    JOIN sections s ON s.id = c.section_id
+    JOIN articles a ON a.id = s.article_id
+    WHERE h.hash IN (%s)
+`, hashString)
+
+	rows, err := h.db.Query(sqlQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error executing hash search query: %w", err)
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	seenArticleIds := make(map[int]bool)
+	for rows.Next() {
+		if limit > 0 && len(results) >= limit {
+			break
+		}
+		var result SearchResult
+		var hash string
+		var articleId int
+		if err := rows.Scan(
+			&articleId,
+			&result.Title,
+			&result.Entity,
+			&result.Section,
+			&result.Text,
+			&hash,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning result: %v", err)
+		}
+
+		if _, seen := seenArticleIds[articleId]; seen {
+			continue
+		}
+
+		seenArticleIds[articleId] = true
+		result.Article = articleId
+		result.Type = "V"
+		result.Power = hashScoreMap[hash]
+		results = append(results, result)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Power > results[j].Power
+	})
 
 	return results, nil
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "0.0.16"
+const Version = "0.0.17"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -20,8 +20,9 @@ type Config struct {
 	webPort          int
 	ai               bool
 	aiApiKey         string
-	aiModelEmbedding string
-	aiModelLLM       string
+	aiEmbeddingModel string
+	aiEmbeddingSize  int
+	aiLlmModel       string
 	aiUrl            string
 	qdrant           bool
 	qdrantHost       string
@@ -31,14 +32,16 @@ type Config struct {
 
 var (
 	db      *DBHandler
+	qd      *QdrantHandler
 	options *Config
 )
 
 func parseConfig() (*Config, error) {
 	options = &Config{}
 	flag.BoolVar(&options.ai, "ai", false, "Enable AI")
-	flag.StringVar(&options.aiModelEmbedding, "ai-model-embedding", "bge-m3", "AI embedding model")
-	flag.StringVar(&options.aiModelLLM, "ai-model-llm", "gemma2", "AI LLM model")
+	flag.IntVar(&options.aiEmbeddingSize, "ai-embedding-size", 1024, "AI embedding size")
+	flag.StringVar(&options.aiEmbeddingModel, "ai-embedding-model", "bge-m3", "AI embedding model")
+	flag.StringVar(&options.aiLlmModel, "ai-llm-model", "gemma2", "AI LLM model")
 	flag.StringVar(&options.aiUrl, "ai-url", "http://localhost:11434/v1/", "AI base url")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
 	flag.StringVar(&options.dbPath, "db", "wikilite.db", "SQLite database path")
@@ -96,38 +99,31 @@ func main() {
 	}
 
 	if options.qdrant {
-		embedding, err := db.GetEmbedding(1)
+		qd, err = qdrantInit(options.qdrantHost, options.qdrantPort, options.qdrantCollection, options.aiEmbeddingSize)
 		if err != nil {
-			log.Fatalf("Error getting embedding from database: %v", err)
+			log.Fatalf("Failed to initialize qdrant: %v", err)
 		}
-		if embedding != nil {
-			embeddingSize := len(embedding.Hash) * len(embedding.Hash)
-			qdrant, err := qdrantInit(options.qdrantHost, options.qdrantPort, options.qdrantCollection, embeddingSize)
-			if err != nil {
-				log.Fatalf("Failed to initialize qdrant: %v", err)
+
+		for {
+			embedding, err := db.GetEmbedding(1)
+			if embedding == nil {
+				break
 			}
 
-			for {
-				embedding, err := db.GetEmbedding(1)
-				if embedding == nil {
-					break
-				}
-
-				exists, err := qdrantCheckIfHashExists(qdrant.PointsClient, options.qdrantCollection, embedding.Hash)
-				if !exists && err == nil {
-					err = qdrantUpsertPoint(qdrant.PointsClient, qdrant.Collection, embedding.Hash, embedding.Vectors)
-					if err != nil {
-						log.Printf("Error upserting point to qdrant: %v", err)
-						continue
-					}
-				}
-
-				err = db.UpdateEmbeddingStatus(embedding.Hash, 2)
+			exists, err := qdrantCheckIfHashExists(qd.PointsClient, options.qdrantCollection, embedding.Hash)
+			if !exists && err == nil {
+				err = qdrantUpsertPoint(qd.PointsClient, qd.Collection, embedding.Hash, embedding.Vectors)
 				if err != nil {
-					log.Fatalf("Error updating embedding status in database: %v", err)
+					log.Printf("Error upserting point to qdrant: %v", err)
+					continue
 				}
-
 			}
+
+			err = db.UpdateEmbeddingStatus(embedding.Hash, 2)
+			if err != nil {
+				log.Fatalf("Error updating embedding status in database: %v", err)
+			}
+
 		}
 		if err := db.ClearEmbeddings(); err != nil {
 			log.Printf("Error clearing database embeddings: %v", err)
@@ -135,7 +131,7 @@ func main() {
 	}
 
 	if options.web {
-		server, err := NewWebServer(db)
+		server, err := NewWebServer()
 		if err != nil {
 			log.Fatalf("Error creating web server: %v\n", err)
 		}
