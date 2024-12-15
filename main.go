@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "0.0.14"
+const Version = "0.0.15"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -23,6 +23,7 @@ type Config struct {
 	aiModelEmbedding string
 	aiModelLLM       string
 	aiUrl            string
+	qdrant           bool
 	qdrantHost       string
 	qdrantPort       int
 	qdrantCollection string
@@ -45,6 +46,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.web, "web", false, "Enable web interface")
 	flag.StringVar(&options.webHost, "web-host", "localhost", "Web server host")
 	flag.IntVar(&options.webPort, "web-port", 35248, "Web server port")
+	flag.BoolVar(&options.qdrant, "qdrant", false, "Enable Qdrant")
 	flag.StringVar(&options.qdrantHost, "qdrant-host", "localhost", "Qdrant server host")
 	flag.IntVar(&options.qdrantPort, "qdrant-port", 6334, "Qdrant server port")
 	flag.StringVar(&options.qdrantCollection, "qdrant-collection", "wikilite", "Qdrant collection")
@@ -89,7 +91,40 @@ func main() {
 	if options.ai {
 		err = db.ProcessEmbeddings()
 		if err != nil {
-			log.Fatalf("Error processing embeddings: %v\n", err)
+			log.Fatalf("Error processing database embeddings: %v\n", err)
+		}
+	}
+
+	if options.qdrant {
+		embedding, err := db.GetEmbedding(1)
+		if err != nil {
+			log.Fatalf("Error getting embedding from database: %v", err)
+		}
+		if embedding != nil {
+			embeddingSize := len(embedding.Hash) * len(embedding.Hash)
+			qdrant, err := qdrantInit(options.qdrantHost, options.qdrantPort, options.qdrantCollection, embeddingSize)
+			if err != nil {
+				log.Fatalf("Failed to initialize qdrant: %v", err)
+			}
+
+			for {
+				embedding, err := db.GetEmbedding(1)
+				if embedding == nil {
+					break
+				}
+
+				err = qdrantUpsertPoint(qdrant.PointsClient, qdrant.Collection, embedding.Hash, embedding.Vectors)
+				if err != nil {
+					log.Printf("Error upserting point to qdrant: %v", err)
+					continue
+				}
+
+				err = db.UpdateEmbeddingStatus(embedding.Hash, 2)
+				if err != nil {
+					log.Fatalf("Error updating embedding status in database: %v", err)
+				}
+
+			}
 		}
 	}
 

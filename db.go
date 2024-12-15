@@ -126,8 +126,7 @@ func (h *DBHandler) initializeDB() error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			hash TEXT UNIQUE NOT NULL,
 			text TEXT NOT NULL,
-			pow INTEGER DEFAULT 0,
-			vectors BLOB
+			pow INTEGER DEFAULT 0
 		)`,
 
 		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
@@ -143,6 +142,12 @@ func (h *DBHandler) initializeDB() error {
 			hash_id INTEGER NOT NULL,
 			FOREIGN KEY(section_id) REFERENCES sections(id),
 			FOREIGN KEY(hash_id) REFERENCES hashes(id)
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS embeddings (
+     	hash TEXT PRIMARY KEY NOT NULL,
+			vectors BLOB NOT NULL,
+			status INTEGER NOT NULL DEFAULT 0
 		)`,
 
 		`CREATE TRIGGER IF NOT EXISTS hashes_ai AFTER INSERT ON hashes BEGIN
@@ -267,7 +272,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 
 func (h *DBHandler) ProcessEmbeddings() error {
 	for {
-		sqlQuery := `SELECT hash, text FROM hashes WHERE vectors IS NULL LIMIT 1;`
+		sqlQuery := `SELECT h.hash, h.text FROM hashes h LEFT JOIN embeddings e ON h.hash = e.hash WHERE e.hash IS NULL OR e.status = 0 LIMIT 1;`
 		row := h.db.QueryRow(sqlQuery)
 
 		var hash string
@@ -297,14 +302,83 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		}
 		defer tx.Rollback()
 
-		updateQuery := `UPDATE hashes SET vectors = ? WHERE hash = ?;`
-		_, err = tx.Exec(updateQuery, blob, hash)
+		var existingStatus int
+		err = tx.QueryRow("SELECT status FROM embeddings WHERE hash = ?", hash).Scan(&existingStatus)
 		if err != nil {
-			return fmt.Errorf("embeddings update error: %w", err)
+			if err == sql.ErrNoRows {
+				_, err = tx.Exec(`
+                INSERT INTO embeddings (hash, vectors, status)
+                VALUES (?, ?, ?)
+            `, hash, blob, 1)
+				if err != nil {
+					return fmt.Errorf("error inserting new embedding: %w", err)
+				}
+
+			} else {
+				return fmt.Errorf("error checking for existing hash: %w", err)
+			}
+		} else {
+			if existingStatus == 0 {
+				_, err = tx.Exec(`
+                UPDATE embeddings SET vectors = ?, status = ? WHERE hash = ?
+            `, blob, 1, hash)
+				if err != nil {
+					return fmt.Errorf("error updating existing embedding: %w", err)
+				}
+			}
 		}
 
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
 	}
+}
+
+func (h *DBHandler) GetEmbedding(status int) (*EmbeddingData, error) {
+	sqlQuery := `
+        SELECT e.hash, e.vectors, e.status
+        FROM embeddings e
+        WHERE e.status = ?
+        LIMIT 1
+    `
+	row := h.db.QueryRow(sqlQuery, status)
+
+	var data EmbeddingData
+	var blob []byte
+	err := row.Scan(&data.Hash, &blob, &data.Status)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No rows found, return nil
+		}
+		return nil, fmt.Errorf("error fetching embedding: %w", err)
+	}
+
+	vectors, err := blobToFloat32(blob)
+	if err != nil {
+		return nil, fmt.Errorf("error converting blob to float32: %w", err)
+	}
+
+	data.Vectors = vectors
+	return &data, nil
+}
+
+func (h *DBHandler) UpdateEmbeddingStatus(hash string, status int) error {
+	tx, err := h.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"UPDATE embeddings SET status = ? WHERE hash = ?",
+		status, hash,
+	)
+	if err != nil {
+		return fmt.Errorf("error updating embedding status: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
 }
