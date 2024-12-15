@@ -113,10 +113,13 @@ func main() {
 					break
 				}
 
-				err = qdrantUpsertPoint(qdrant.PointsClient, qdrant.Collection, embedding.Hash, embedding.Vectors)
-				if err != nil {
-					log.Printf("Error upserting point to qdrant: %v", err)
-					continue
+				exists, err := qdrantCheckIfHashExists(qdrant.PointsClient, options.qdrantCollection, embedding.Hash)
+				if !exists && err == nil {
+					err = qdrantUpsertPoint(qdrant.PointsClient, qdrant.Collection, embedding.Hash, embedding.Vectors)
+					if err != nil {
+						log.Printf("Error upserting point to qdrant: %v", err)
+						continue
+					}
 				}
 
 				err = db.UpdateEmbeddingStatus(embedding.Hash, 2)
@@ -125,6 +128,9 @@ func main() {
 				}
 
 			}
+		}
+		if err := db.ClearEmbeddings(); err != nil {
+			log.Printf("Error clearing database embeddings: %v", err)
 		}
 	}
 

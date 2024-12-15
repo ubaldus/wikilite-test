@@ -64,43 +64,6 @@ func qdrantCreateCollection(client qdrant.CollectionsClient, collectionName stri
 	return err
 }
 
-func qdrantCheckIfHashExists(client qdrant.PointsClient, collectionName, hash string) (bool, error) {
-	ctx := context.Background()
-	filter := &qdrant.Filter{
-		Must: []*qdrant.Condition{
-			{
-				ConditionOneOf: &qdrant.Condition_Field{
-					Field: &qdrant.FieldCondition{
-						Key: "hash",
-						Match: &qdrant.Match{
-							MatchValue: &qdrant.Match_Text{
-								Text: hash,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	resp, err := client.Search(ctx, &qdrant.SearchPoints{
-		CollectionName: collectionName,
-		Limit:          1,
-		WithPayload: &qdrant.WithPayloadSelector{
-			SelectorOptions: &qdrant.WithPayloadSelector_Enable{
-				Enable: true,
-			},
-		},
-		Filter: filter,
-	})
-
-	if err != nil {
-		return false, fmt.Errorf("failed to search point: %w", err)
-	}
-
-	return len(resp.GetResult()) > 0, nil
-}
-
 func qdrantUpsertPoint(client qdrant.PointsClient, collectionName, hash string, embedding []float32) error {
 	ctx := context.Background()
 	true_val := true
@@ -209,4 +172,30 @@ func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []fl
 		scores = append(scores, float64(point.Score))
 	}
 	return hashes, scores, nil
+}
+
+func qdrantCheckIfHashExists(client qdrant.PointsClient, collectionName, hash string) (bool, error) {
+	ctx := context.Background()
+	filter := &qdrant.Filter{
+		Must: []*qdrant.Condition{
+			qdrant.NewMatch("hash", hash),
+		},
+	}
+
+	resp, err := client.Scroll(ctx, &qdrant.ScrollPoints{
+		CollectionName: collectionName,
+		Limit:          qdrant.PtrOf(uint32(1)),
+		WithPayload:    qdrant.NewWithPayload(true),
+		Filter:         filter,
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("failed to scroll points: %w", err)
+	}
+
+	if len(resp.GetResult()) == 0 {
+		return false, nil
+	}
+
+	return true, nil
 }

@@ -362,23 +362,26 @@ func (h *DBHandler) GetEmbedding(status int) (*EmbeddingData, error) {
 	return &data, nil
 }
 
-func (h *DBHandler) UpdateEmbeddingStatus(hash string, status int) error {
-	tx, err := h.db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec(
+func (h *DBHandler) UpdateEmbeddingStatus(hash string, status int) (err error) {
+	_, err = h.db.Exec(
 		"UPDATE embeddings SET status = ? WHERE hash = ?",
 		status, hash,
 	)
+
+	return
+}
+
+func (h *DBHandler) ClearEmbeddings() (err error) {
+
+	_, err = h.db.Exec("UPDATE embeddings SET vectors = zeroblob(0) WHERE status > 1")
 	if err != nil {
-		return fmt.Errorf("error updating embedding status: %w", err)
+		return fmt.Errorf("error setting blob size to zero: %w", err)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	_, err = h.db.Exec("VACUUM")
+	if err != nil {
+		return fmt.Errorf("error running vacuum: %w", err)
 	}
-	return nil
+
+	return
 }
