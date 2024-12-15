@@ -14,6 +14,90 @@ type DBHandler struct {
 	db *sql.DB
 }
 
+func (h *DBHandler) initializeDB() error {
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS articles (
+			id INTEGER PRIMARY KEY,
+			title TEXT NOT NULL,
+			entity TEXT NOT NULL
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS sections (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			article_id INTEGER,
+			sub TEXT,
+			pow INTEGER DEFAULT 0,
+			FOREIGN KEY(article_id) REFERENCES articles(id)
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS hashes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			hash TEXT UNIQUE NOT NULL,
+			text TEXT NOT NULL,
+			pow INTEGER DEFAULT 0
+		)`,
+
+		`CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
+			title,
+            content='articles',
+            content_rowid='id'
+		)`,
+
+		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
+			hash,
+			text,
+			content='hashes',
+			content_rowid='id'
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS content (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			section_id INTEGER,
+			hash_id INTEGER NOT NULL,
+			FOREIGN KEY(section_id) REFERENCES sections(id),
+			FOREIGN KEY(hash_id) REFERENCES hashes(id)
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS embeddings (
+			hash TEXT PRIMARY KEY NOT NULL,
+			vectors BLOB NOT NULL,
+			status INTEGER NOT NULL DEFAULT 0
+		)`,
+
+		`CREATE TRIGGER IF NOT EXISTS articles_ai AFTER INSERT ON articles BEGIN
+			INSERT INTO article_search(rowid, title) VALUES (new.id, new.title);
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS articles_ad AFTER DELETE ON articles BEGIN
+			INSERT INTO article_search(article_search, rowid, title) VALUES('delete', old.id, old.title);
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS articles_au AFTER UPDATE ON articles BEGIN
+			INSERT INTO article_search(article_search, rowid, title) VALUES('delete', old.id, old.title);
+			INSERT INTO article_search(rowid, title) VALUES (new.id, new.title);
+		END`,
+
+		`CREATE TRIGGER IF NOT EXISTS hashes_ai AFTER INSERT ON hashes BEGIN
+			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
+		END`,
+
+		`CREATE TRIGGER IF NOT EXISTS hashes_ad AFTER DELETE ON hashes BEGIN
+			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
+		END`,
+
+		`CREATE TRIGGER IF NOT EXISTS hashes_au AFTER UPDATE ON hashes BEGIN
+			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
+			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
+		END`,
+	}
+
+	for _, query := range queries {
+		if _, err := h.db.Exec(query); err != nil {
+			return fmt.Errorf("error executing query %s: %v", query, err)
+		}
+	}
+
+	return nil
+}
+
 func NewDBHandler(dbPath string) (*DBHandler, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -104,126 +188,6 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 
 func (h *DBHandler) Close() error {
 	return h.db.Close()
-}
-
-func (h *DBHandler) initializeDB() error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS articles (
-			id INTEGER PRIMARY KEY,
-			title TEXT NOT NULL,
-			entity TEXT NOT NULL
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS sections (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			article_id INTEGER,
-			sub TEXT,
-			pow INTEGER DEFAULT 0,
-			FOREIGN KEY(article_id) REFERENCES articles(id)
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS hashes (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			hash TEXT UNIQUE NOT NULL,
-			text TEXT NOT NULL,
-			pow INTEGER DEFAULT 0
-		)`,
-
-		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
-			hash,
-			text,
-			content='hashes',
-			content_rowid='id'
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS content (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			section_id INTEGER,
-			hash_id INTEGER NOT NULL,
-			FOREIGN KEY(section_id) REFERENCES sections(id),
-			FOREIGN KEY(hash_id) REFERENCES hashes(id)
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS embeddings (
-     	hash TEXT PRIMARY KEY NOT NULL,
-			vectors BLOB NOT NULL,
-			status INTEGER NOT NULL DEFAULT 0
-		)`,
-
-		`CREATE TRIGGER IF NOT EXISTS hashes_ai AFTER INSERT ON hashes BEGIN
-			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
-		END`,
-
-		`CREATE TRIGGER IF NOT EXISTS hashes_ad AFTER DELETE ON hashes BEGIN
-			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
-		END`,
-
-		`CREATE TRIGGER IF NOT EXISTS hashes_au AFTER UPDATE ON hashes BEGIN
-			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
-			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
-		END`,
-	}
-
-	for _, query := range queries {
-		if _, err := h.db.Exec(query); err != nil {
-			return fmt.Errorf("error executing query %s: %v", query, err)
-		}
-	}
-
-	return nil
-}
-
-func (h *DBHandler) SearchArticles(searchQuery string, limit int) ([]SearchResult, error) {
-	sqlQuery := `
-		WITH matched_hashes AS (
-			SELECT rowid, text, bm25(hash_search) as relevance
-			FROM hash_search
-			WHERE hash_search MATCH ?
-		)
-		SELECT DISTINCT
-			a.id as article_id,
-			a.title,
-			a.entity,
-			s.sub as section,
-			mh.text
-		FROM matched_hashes mh
-		JOIN hashes h ON h.id = mh.rowid
-		JOIN content c ON c.hash_id = h.id
-		JOIN sections s ON s.id = c.section_id
-		JOIN articles a ON a.id = s.article_id
-		ORDER BY h.pow ASC
-		LIMIT ?
-	`
-
-	rows, err := h.db.Query(sqlQuery, searchQuery, limit*5)
-	if err != nil {
-		return nil, fmt.Errorf("search error: %v", err)
-	}
-	defer rows.Close()
-
-	seenArticles := make(map[int]bool)
-	var results []SearchResult
-	for rows.Next() {
-		var result SearchResult
-		if err := rows.Scan(
-			&result.Article,
-			&result.Title,
-			&result.Entity,
-			&result.Section,
-			&result.Text,
-		); err != nil {
-			return nil, fmt.Errorf("error scanning result: %v", err)
-		}
-		if _, exists := seenArticles[result.Article]; !exists {
-			results = append(results, result)
-			seenArticles[result.Article] = true
-			if len(results) >= limit {
-				break
-			}
-		}
-	}
-
-	return results, nil
 }
 
 func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
@@ -384,4 +348,101 @@ func (h *DBHandler) ClearEmbeddings() (err error) {
 	}
 
 	return
+}
+
+func (h *DBHandler) searchContent(searchQuery string, limit int) ([]SearchResult, error) {
+	sqlQuery := `
+		WITH matched_hashes AS (
+			SELECT rowid, text, bm25(hash_search) as relevance
+			FROM hash_search
+			WHERE hash_search MATCH ?
+		)
+		SELECT DISTINCT
+			a.id as article_id,
+			a.title,
+			a.entity,
+			s.sub as section,
+			mh.text,
+			relevance
+		FROM matched_hashes mh
+		JOIN hashes h ON h.id = mh.rowid
+		JOIN content c ON c.hash_id = h.id
+		JOIN sections s ON s.id = c.section_id
+		JOIN articles a ON a.id = s.article_id
+		ORDER BY mh.relevance DESC
+		LIMIT ?
+	`
+
+	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search error: %v", err)
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var result SearchResult
+		if err := rows.Scan(
+			&result.Article,
+			&result.Title,
+			&result.Entity,
+			&result.Section,
+			&result.Text,
+			&result.Power,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning result: %v", err)
+		}
+		result.Type = "C"
+		results = append(results, result)
+		if len(results) >= limit {
+			break
+		}
+	}
+	return results, nil
+}
+
+func (h *DBHandler) searchTitle(searchQuery string, limit int) ([]SearchResult, error) {
+	sqlQuery := `
+		WITH matched_titles AS (
+      SELECT rowid, title, bm25(article_search) - length(title) as relevance
+      FROM article_search
+      WHERE article_search MATCH ?
+        )
+        SELECT DISTINCT
+            a.id as article_id,
+            a.title,
+            a.entity,
+            '' as section,
+            '' as text,
+            relevance
+        FROM matched_titles mt
+    JOIN articles a ON a.id = mt.rowid
+        ORDER BY  mt.relevance ASC
+        LIMIT ?
+		`
+
+	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search error: %v", err)
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var result SearchResult
+		if err := rows.Scan(
+			&result.Article,
+			&result.Title,
+			&result.Entity,
+			&result.Section,
+			&result.Text,
+			&result.Power,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning result: %v", err)
+		}
+		result.Type = "T"
+		results = append(results, result)
+	}
+
+	return results, nil
 }

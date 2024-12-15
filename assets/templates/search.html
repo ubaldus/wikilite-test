@@ -16,14 +16,18 @@
                 <div class="results">
                     {{range .Results}}
                         <div class="card mb-3">
+                            <div class="card-header">
+                              <a href="article?id={{.Article}}">{{.Title}}</a>
+                            </div>
+                            {{if .Text}}
                             <div class="card-body">
-                                <h5 class="card-title"><a href="article?id={{.Article}}">{{.Title}}</a></h5>
-                                <h6 class="card-subtitle mb-2 text-muted">Entity: {{.Entity}}</h6>
+                                <p class="card-text">{{.Text}}</p>
                                 {{if .Section}}
                                     <h6 class="card-subtitle mb-2 text-muted">Section: {{.Section}}</h6>
                                 {{end}}
-                                <p class="card-text">{{.Text}}</p>
                             </div>
+                            {{end}}
+                            <div class="card-footer"><small>[{{.Type}}] {{.Entity}}</small></div>
                         </div>
                     {{end}}
                 </div>

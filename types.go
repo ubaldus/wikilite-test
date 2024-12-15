@@ -8,6 +8,8 @@ type SearchResult struct {
 	Entity  string
 	Text    string
 	Section string
+	Type    string
+	Power   float64
 }
 
 type ArticleResult struct {
