@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
+	"strings"
 )
 
-func search(query string, db *DBHandler) ([]SearchResult, error) {
-	limit := QueryLimit
+func search(query string, limit int) ([]SearchResult, error) {
 	var results []SearchResult
 
 	log.Println("FTS title searching", query)
@@ -44,4 +47,50 @@ func search(query string, db *DBHandler) ([]SearchResult, error) {
 	}
 
 	return results, nil
+}
+
+func searchCli() error {
+	reader := bufio.NewReader(os.Stdin)
+	var articles map[int]int
+	for {
+		fmt.Print("> ")
+		query, _ := reader.ReadString('\n')
+		query = strings.TrimSpace(query)
+		queryIdx, err := strconv.Atoi(query)
+
+		if err == nil && articles[queryIdx] > 0 {
+			article, err := db.GetArticle(articles[queryIdx])
+			if err != nil {
+				log.Fatal("cli error", err)
+			}
+
+			title := ""
+			section := ""
+			for _, entry := range article {
+				if entry.Title != title {
+					title = entry.Title
+					fmt.Printf("%s\n\n", title)
+				}
+				if entry.Section != section {
+					section = entry.Section
+					fmt.Printf("\n%s\n\n", section)
+				}
+				fmt.Println(entry.Text)
+			}
+			fmt.Println()
+
+		} else {
+
+			results, err := search(query, options.limit)
+			if err != nil {
+				log.Fatal("cli error", err)
+			}
+
+			articles = make(map[int]int)
+			for i, result := range results {
+				articles[i+1] = result.Article
+				fmt.Printf("% 3d [%s] %s\n", i+1, result.Type, result.Title)
+			}
+		}
+	}
 }

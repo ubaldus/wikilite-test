@@ -30,7 +30,7 @@ func NewWebServer() (*WebServer, error) {
 func (s *WebServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		query := r.FormValue("query")
-		results, err := search(query, db)
+		results, err := search(query, options.limit)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

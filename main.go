@@ -11,8 +11,7 @@ import (
 	"strings"
 )
 
-const Version = "0.0.18"
-const QueryLimit = 5
+const Version = "0.0.19"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -33,6 +32,8 @@ type Config struct {
 	optimize         bool
 	log              bool
 	logFile          string
+	cli              bool
+	limit            int
 }
 
 var (
@@ -61,6 +62,8 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.optimize, "optimize", false, "Optimize the database")
 	flag.BoolVar(&options.log, "log", false, "Enable logging")
 	flag.StringVar(&options.logFile, "log-file", "", "Log file path")
+	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
+	flag.IntVar(&options.limit, "limit", 5, "Maximum number of search results")
 
 	flag.Usage = func() {
 		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")
@@ -155,6 +158,10 @@ func main() {
 		if err := db.ClearEmbeddings(); err != nil {
 			log.Printf("Error clearing database embeddings: %v", err)
 		}
+	}
+
+	if options.cli {
+		searchCli()
 	}
 
 	if options.web {
