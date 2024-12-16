@@ -237,7 +237,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 
 func (h *DBHandler) ProcessEmbeddings() error {
 	for {
-		sqlQuery := `SELECT h.hash, h.text FROM hashes h LEFT JOIN embeddings e ON h.hash = e.hash WHERE e.hash IS NULL OR e.status = 0 LIMIT 1;`
+		sqlQuery := `SELECT h.hash, h.text FROM hashes h LEFT JOIN embeddings e ON h.hash = e.hash WHERE h.pow = 1 AND e.hash IS NULL OR e.status = 0 LIMIT 1;`
 		row := h.db.QueryRow(sqlQuery)
 
 		var hash string
@@ -355,23 +355,35 @@ func (h *DBHandler) searchContent(searchQuery string, limit int) ([]SearchResult
 	sqlQuery := `
 		WITH matched_hashes AS (
 			SELECT rowid, text, bm25(hash_search) as relevance
-			FROM hash_search
-			WHERE hash_search MATCH ?
-		)
-		SELECT DISTINCT
-			a.id as article_id,
-			a.title,
-			a.entity,
-			s.sub as section,
-			mh.text,
-			relevance
-		FROM matched_hashes mh
-		JOIN hashes h ON h.id = mh.rowid
-		JOIN content c ON c.hash_id = h.id
-		JOIN sections s ON s.id = c.section_id
-		JOIN articles a ON a.id = s.article_id
-		ORDER BY mh.relevance DESC
-		LIMIT ?
+  		FROM hash_search
+  		WHERE hash_search MATCH ?
+		),
+		ranked_articles AS (
+    	SELECT
+      	a.id as article_id,
+      	a.title,
+      	a.entity,
+      	s.sub as section,
+      	mh.text,
+      	relevance,
+      	ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY mh.relevance DESC) as rn
+    	FROM matched_hashes mh
+    	JOIN hashes h ON h.id = mh.rowid
+    	JOIN content c ON c.hash_id = h.id
+    	JOIN sections s ON s.id = c.section_id
+    	JOIN articles a ON a.id = s.article_id
+	)
+	SELECT 
+    article_id,
+    title,
+    entity,
+    section,
+    text,
+    relevance
+	FROM ranked_articles
+	WHERE rn = 1
+	ORDER BY relevance DESC
+	LIMIT ?;
 	`
 
 	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
@@ -479,7 +491,7 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
     JOIN sections s ON s.id = c.section_id
     JOIN articles a ON a.id = s.article_id
     WHERE h.hash IN (%s)
-`, hashString)
+	`, hashString)
 
 	rows, err := h.db.Query(sqlQuery)
 	if err != nil {

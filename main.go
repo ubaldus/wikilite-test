@@ -5,12 +5,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
 )
 
-const Version = "0.0.17"
+const Version = "0.0.18"
+const QueryLimit = 5
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -28,6 +30,9 @@ type Config struct {
 	qdrantHost       string
 	qdrantPort       int
 	qdrantCollection string
+	optimize         bool
+	log              bool
+	logFile          string
 }
 
 var (
@@ -53,6 +58,9 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.qdrantHost, "qdrant-host", "localhost", "Qdrant server host")
 	flag.IntVar(&options.qdrantPort, "qdrant-port", 6334, "Qdrant server port")
 	flag.StringVar(&options.qdrantCollection, "qdrant-collection", "wikilite", "Qdrant collection")
+	flag.BoolVar(&options.optimize, "optimize", false, "Optimize the database")
+	flag.BoolVar(&options.log, "log", false, "Enable logging")
+	flag.StringVar(&options.logFile, "log-file", "", "Log file path")
 
 	flag.Usage = func() {
 		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")
@@ -72,6 +80,23 @@ func main() {
 	options, err := parseConfig()
 	if err != nil {
 		log.Fatalf("Error parsing command line: %v\n\n", err)
+	}
+
+	if flag.NFlag() == 0 {
+		flag.Usage()
+		os.Exit(0)
+	}
+
+	if options.log {
+		if options.logFile != "" {
+			logFile, err := os.OpenFile(options.logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error opening log file: %v\n", err)
+			}
+			log.SetOutput(logFile)
+		}
+	} else {
+		log.SetOutput(io.Discard)
 	}
 
 	db, err = NewDBHandler(options.dbPath)
@@ -125,6 +150,8 @@ func main() {
 			}
 
 		}
+	}
+	if options.optimize {
 		if err := db.ClearEmbeddings(); err != nil {
 			log.Printf("Error clearing database embeddings: %v", err)
 		}
