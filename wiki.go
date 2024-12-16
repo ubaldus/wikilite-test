@@ -301,10 +301,12 @@ func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTit
 		if len(texts) > 0 {
 			var textEntries []map[string]string
 			for _, text := range texts {
-				textEntries = append(textEntries, map[string]string{
-					"hash": calculateHash([]string{text}),
-					"text": text,
-				})
+				if text != item["sub"] {
+					textEntries = append(textEntries, map[string]string{
+						"hash": calculateHash([]string{text}),
+						"text": text,
+					})
+				}
 			}
 
 			items = append(items, map[string]interface{}{
