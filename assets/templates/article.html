@@ -1,7 +1,7 @@
 {{template "head.html" . }}
 
         {{if .Results}}
-            <h1 class="mb-4">{{(index .Results 0).Title}}</h1>
+            <h1 class="mb-4">{{(index .Results 0).Title}}  <button class="btn speak-button"><i class="bi bi-volume-up-fill"></i></button></h1>
             <p class="text-muted">Entity ID: <a href="https://www.wikidata.org/wiki/{{(index .Results 0).Entity}}">{{(index .Results 0).Entity}}</a></p>
             
             {{$currentSection := ""}}
