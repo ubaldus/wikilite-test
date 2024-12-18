@@ -1,35 +1,35 @@
 {{template "head.html" . }}
 
-        <h1 class="mb-4">Article Search</h1>
-        
-        <form method="POST" action="/" class="mb-4">
-            <div class="input-group">
-                <input type="text" name="query" class="form-control" id="speechInput" value="{{.Query}}">
-								<button type="button" id="startSpeech" class="btn btn-secondary"><i class="bi bi-mic-fill"></i></button>
-                <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
-            </div>
-        </form>
+   <h1 class="mb-4 text-center">Wikilite</h1>
+   
+   <form method="POST" action="/" class="mb-4">
+     <div class="input-group">
+     <input type="text" name="query" class="form-control" id="speechInput" value="{{.Query}}">
+     <button type="button" id="startSpeech" class="btn btn-secondary"><i class="bi bi-mic-fill"></i></button>
+     <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
+     </div>
+   </form>
 
-        {{if .HasQuery}}
-            {{if len .Results}}
-                <div class="results">
-                    {{range .Results}}
-                        <div class="card mb-3">
-                            <div class="card-header">
-                              <a href="article?id={{.Article}}">{{.Title}}</a>
-                            </div>
-                            {{if .Text}}
-                            <div class="card-body">
-                                <p class="card-text">{{.Text}}</p>
-                            </div>
-                            {{end}}
-                            <div class="card-footer"> <small class="text-muted">{{.Type}}: {{.Power}}</small></div>
-                        </div>
-                    {{end}}
-                </div>
-            {{else}}
-                <div class="alert alert-info">No results found for "{{.Query}}"</div>
-            {{end}}
-        {{end}}
+ {{if .HasQuery}}
+   {{if len .Results}}
+   <div class="results">
+     {{range .Results}}
+     <div class="card mb-3">
+     <div class="card-header">
+       <a href="article?id={{.Article}}">{{.Title}}</a>
+     </div>
+     {{if .Text}}
+     <div class="card-body">
+      <p class="card-text">{{.Text}}</p>
+     </div>
+     {{end}}
+     <div class="card-footer"> <small class="text-muted">{{.Type}}: {{.Power}}</small></div>
+     </div>
+     {{end}}
+   </div>
+   {{else}}
+     <div class="alert alert-info">No results found for "{{.Query}}"</div>
+   {{end}}
+ {{end}}
 
 {{template "foot.html" . }}
