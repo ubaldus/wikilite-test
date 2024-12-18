@@ -90,7 +90,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if options.log {
+	if options.log || options.logFile != "" {
 		if options.logFile != "" {
 			logFile, err := os.OpenFile(options.logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 			if err != nil {
