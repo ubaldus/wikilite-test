@@ -301,10 +301,10 @@ func (h *DBHandler) ProcessEmbeddings() error {
 
 func (h *DBHandler) GetEmbedding(status int) (*EmbeddingData, error) {
 	sqlQuery := `
-        SELECT e.hash, e.vectors, e.status
-        FROM embeddings e
-        WHERE e.status = ?
-        LIMIT 1
+		SELECT e.hash, e.vectors, e.status
+		FROM embeddings e
+		WHERE e.status = ?
+		LIMIT 1
     `
 	row := h.db.QueryRow(sqlQuery, status)
 
@@ -351,88 +351,25 @@ func (h *DBHandler) ClearEmbeddings() (err error) {
 	return
 }
 
-func (h *DBHandler) searchContent(searchQuery string, limit int) ([]SearchResult, error) {
-	sqlQuery := `
-		WITH matched_hashes AS (
-			SELECT rowid, text, bm25(hash_search) as relevance
-  		FROM hash_search
-  		WHERE hash_search MATCH ?
-		),
-		ranked_articles AS (
-    	SELECT
-      	a.id as article_id,
-      	a.title,
-      	a.entity,
-      	s.sub as section,
-      	mh.text,
-      	relevance,
-      	ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY mh.relevance DESC) as rn
-    	FROM matched_hashes mh
-    	JOIN hashes h ON h.id = mh.rowid
-    	JOIN content c ON c.hash_id = h.id
-    	JOIN sections s ON s.id = c.section_id
-    	JOIN articles a ON a.id = s.article_id
-	)
-	SELECT 
-    article_id,
-    title,
-    entity,
-    section,
-    text,
-    relevance
-	FROM ranked_articles
-	WHERE rn = 1
-	ORDER BY relevance DESC
-	LIMIT ?;
-	`
-
-	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
-	if err != nil {
-		return nil, fmt.Errorf("search error: %v", err)
-	}
-	defer rows.Close()
-
-	var results []SearchResult
-	for rows.Next() {
-		var result SearchResult
-		if err := rows.Scan(
-			&result.Article,
-			&result.Title,
-			&result.Entity,
-			&result.Section,
-			&result.Text,
-			&result.Power,
-		); err != nil {
-			return nil, fmt.Errorf("error scanning result: %v", err)
-		}
-		result.Type = "C"
-		results = append(results, result)
-		if len(results) >= limit {
-			break
-		}
-	}
-	return results, nil
-}
-
 func (h *DBHandler) searchTitle(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
 		WITH matched_titles AS (
-      SELECT rowid, title, bm25(article_search) - length(title) as relevance
-      FROM article_search
-      WHERE article_search MATCH ?
-        )
-        SELECT DISTINCT
-            a.id as article_id,
-            a.title,
-            a.entity,
-            '' as section,
-            '' as text,
-            relevance
-        FROM matched_titles mt
-    JOIN articles a ON a.id = mt.rowid
-        ORDER BY  mt.relevance ASC
-        LIMIT ?
-		`
+  		SELECT rowid, title, bm25(article_search) AS relevance
+			FROM article_search
+			WHERE article_search MATCH ?
+		)
+    SELECT DISTINCT
+			a.id as article_id,
+			a.title,
+			a.entity,
+			'' as section,
+			'' as text,
+			relevance
+		FROM matched_titles mt
+		JOIN articles a ON a.id = mt.rowid
+    ORDER BY mt.relevance ASC
+    LIMIT ?
+	`
 
 	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
 	if err != nil {
@@ -533,6 +470,100 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Power > results[j].Power
 	})
+
+	return results, nil
+}
+
+func (h *DBHandler) searchContent(searchQuery string, limit int) ([]SearchResult, error) {
+	sqlQuery := `
+  	SELECT rowid, text, bm25(hash_search) as relevance
+		FROM hash_search
+		WHERE hash_search MATCH ?
+		ORDER BY relevance ASC
+		LIMIT ?;
+	`
+
+	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
+	if err != nil {
+		return nil, fmt.Errorf("hash search error: %v", err)
+	}
+	defer rows.Close()
+
+	type HashResult struct {
+		RowID     int
+		Text      string
+		Relevance float64
+	}
+	hashResults := make([]HashResult, 0)
+	for rows.Next() {
+		var result HashResult
+		if err := rows.Scan(&result.RowID, &result.Text, &result.Relevance); err != nil {
+			return nil, fmt.Errorf("error scanning hash result: %v", err)
+		}
+		hashResults = append(hashResults, result)
+	}
+	if len(hashResults) == 0 {
+		return []SearchResult{}, nil
+	}
+	placeholders := ""
+	params := make([]interface{}, len(hashResults))
+
+	for i, hash := range hashResults {
+		if i > 0 {
+			placeholders += ", "
+		}
+		placeholders += "?"
+		params[i] = hash.RowID
+	}
+	sqlQuery = fmt.Sprintf(`
+		SELECT
+			a.id as article_id,
+			a.title,
+			a.entity,
+			s.sub as section,
+			h.id as hash_id
+		FROM hashes h
+		JOIN content c ON c.hash_id = h.id
+		JOIN sections s ON s.id = c.section_id
+		JOIN articles a ON a.id = s.article_id
+		WHERE h.id IN (%s)
+  	`, placeholders)
+
+	rows, err = h.db.Query(sqlQuery, params...)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving article info: %v", err)
+	}
+	defer rows.Close()
+
+	resultsMap := make(map[int]SearchResult, len(hashResults))
+	for rows.Next() {
+		var result SearchResult
+		var hash_id int
+		if err := rows.Scan(
+			&result.Article,
+			&result.Title,
+			&result.Entity,
+			&result.Section,
+			&hash_id,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning article info: %v", err)
+		}
+		result.Type = "C"
+		resultsMap[hash_id] = result
+	}
+
+	results := make([]SearchResult, 0, len(hashResults))
+	for _, hashResult := range hashResults {
+		if result, ok := resultsMap[hashResult.RowID]; ok {
+			result.Text = hashResult.Text
+			result.Power = hashResult.Relevance
+			results = append(results, result)
+		}
+	}
+
+	if len(results) > limit {
+		results = results[:limit]
+	}
 
 	return results, nil
 }

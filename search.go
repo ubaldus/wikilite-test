@@ -45,7 +45,6 @@ func search(query string, limit int) ([]SearchResult, error) {
 			results = append(results, result)
 		}
 	}
-
 	return results, nil
 }
 
