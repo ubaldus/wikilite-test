@@ -45,7 +45,8 @@ func search(query string, limit int) ([]SearchResult, error) {
 			results = append(results, result)
 		}
 	}
-	return results, nil
+
+	return searchOptimize(results), nil
 }
 
 func searchCli() error {
@@ -92,4 +93,27 @@ func searchCli() error {
 			}
 		}
 	}
+}
+
+func searchOptimize(results []SearchResult) []SearchResult {
+	seen := make(map[int]bool)
+	accumulatedResults := []SearchResult{}
+
+	for _, result := range results {
+		if !seen[result.Article] {
+			// First occurrence, add it to accumulated results and mark as seen
+			seen[result.Article] = true
+			accumulatedResults = append(accumulatedResults, result)
+		} else {
+			// Duplicate article, find the first entry and accumulate the power value
+			for i := range accumulatedResults {
+				if accumulatedResults[i].Article == result.Article {
+					accumulatedResults[i].Power += result.Power
+					break
+				}
+			}
+		}
+	}
+
+	return accumulatedResults
 }

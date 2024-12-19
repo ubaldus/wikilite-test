@@ -65,6 +65,7 @@ func qdrantCreateCollection(client qdrant.CollectionsClient, collectionName stri
 }
 
 func qdrantUpsertPoint(client qdrant.PointsClient, collectionName, hash string, embedding []float32) error {
+	log.Printf("Qdrant upserting hash %s\n", hash)
 	ctx := context.Background()
 	true_val := true
 	_, err := client.Upsert(ctx, &qdrant.UpsertPoints{
@@ -114,7 +115,7 @@ func qdrantInit(host string, port int, collectionName string, embeddingSize int)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create collection: %w", err)
 		}
-		log.Printf("Collection '%s' created successfully.\n", collectionName)
+		log.Printf("Qdrant collection '%s' created successfully.\n", collectionName)
 	}
 
 	return handler, nil
@@ -142,13 +143,13 @@ func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []fl
 	for _, point := range resp.GetResult() {
 		hashValue, ok := point.Payload["hash"]
 		if !ok {
-			log.Println("No hash value found in payload for a point, skipping.")
+			log.Println("Qdrant, no hash value found in payload for a point, skipping.")
 			continue
 		}
 
 		hash, ok := hashValue.Kind.(*qdrant.Value_StringValue)
 		if !ok {
-			log.Printf("Unexpected type for hash value: %T\n", hashValue.Kind)
+			log.Printf("Qdrant, unexpected type for hash value: %T\n", hashValue.Kind)
 			continue
 		}
 		hashes = append(hashes, hash.StringValue)

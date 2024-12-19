@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const Version = "0.0.23"
+const Version = "0.0.24"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -24,10 +24,12 @@ type Config struct {
 	aiEmbeddingModel string
 	aiEmbeddingSize  int
 	aiLlmModel       string
+	aiSync           bool
 	aiUrl            string
 	qdrant           bool
 	qdrantHost       string
 	qdrantPort       int
+	qdrantSync       bool
 	qdrantCollection string
 	optimize         bool
 	log              bool
@@ -47,6 +49,7 @@ var (
 func parseConfig() (*Config, error) {
 	options = &Config{}
 	flag.BoolVar(&options.ai, "ai", false, "Enable AI")
+	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI embeddings sync")
 	flag.IntVar(&options.aiEmbeddingSize, "ai-embedding-size", 1024, "AI embedding size")
 	flag.StringVar(&options.aiEmbeddingModel, "ai-embedding-model", "bge-m3", "AI embedding model")
 	flag.StringVar(&options.aiLlmModel, "ai-llm-model", "gemma2", "AI LLM model")
@@ -59,6 +62,7 @@ func parseConfig() (*Config, error) {
 	flag.IntVar(&options.webPort, "web-port", 35248, "Web server port")
 	flag.BoolVar(&options.qdrant, "qdrant", false, "Enable Qdrant")
 	flag.StringVar(&options.qdrantHost, "qdrant-host", "localhost", "Qdrant server host")
+	flag.BoolVar(&options.qdrantSync, "qdrant-sync", false, "Qdrant embeddings sync")
 	flag.IntVar(&options.qdrantPort, "qdrant-port", 6334, "Qdrant server port")
 	flag.StringVar(&options.qdrantCollection, "qdrant-collection", "wikilite", "Qdrant collection")
 	flag.BoolVar(&options.optimize, "optimize", false, "Optimize the database")
@@ -122,7 +126,7 @@ func main() {
 		}
 	}
 
-	if options.ai {
+	if options.aiSync {
 		err = db.ProcessEmbeddings()
 		if err != nil {
 			log.Fatalf("Error processing database embeddings: %v\n", err)
@@ -135,28 +139,30 @@ func main() {
 			log.Fatalf("Failed to initialize qdrant: %v", err)
 		}
 
-		for {
-			embedding, err := db.GetEmbedding(1)
-			if embedding == nil {
-				break
-			}
+		if options.qdrantSync {
+			for {
+				embedding, err := db.GetEmbedding(1)
+				if embedding == nil {
+					break
+				}
 
-			exists, err := qdrantCheckIfHashExists(qd.PointsClient, options.qdrantCollection, embedding.Hash)
-			if !exists && err == nil {
-				err = qdrantUpsertPoint(qd.PointsClient, qd.Collection, embedding.Hash, embedding.Vectors)
+				exists, err := qdrantCheckIfHashExists(qd.PointsClient, options.qdrantCollection, embedding.Hash)
+				if !exists && err == nil {
+					err = qdrantUpsertPoint(qd.PointsClient, qd.Collection, embedding.Hash, embedding.Vectors)
+					if err != nil {
+						log.Printf("Error upserting point to qdrant: %v", err)
+						continue
+					}
+				}
+
+				err = db.UpdateEmbeddingStatus(embedding.Hash, 2)
 				if err != nil {
-					log.Printf("Error upserting point to qdrant: %v", err)
-					continue
+					log.Fatalf("Error updating embedding status in database: %v", err)
 				}
 			}
-
-			err = db.UpdateEmbeddingStatus(embedding.Hash, 2)
-			if err != nil {
-				log.Fatalf("Error updating embedding status in database: %v", err)
-			}
-
 		}
 	}
+
 	if options.optimize {
 		if err := db.ClearEmbeddings(); err != nil {
 			log.Printf("Error clearing database embeddings: %v", err)
