@@ -8,8 +8,12 @@ const startSpeechButton = document.getElementById('startSpeech');
 const speakButton = document.querySelector('.speak-button');
 const speakIcon = document.querySelector('.speak-button i');
 
-if (!'speechSynthesis' in window) { 
+if (speakButton && (!'speechSynthesis' in window)) {
 	speakButton.style.display = 'none';
+}
+
+if (startSpeechButton && !/Chrome/.test(navigator.userAgent)) {
+	startSpeechButton.style.display = 'none';
 }
 
 
@@ -17,8 +21,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 	const recognition = new SpeechRecognition();
 
-	const browserLanguage = navigator.language || navigator.userLanguage;
-	recognition.lang = browserLanguage;
+	recognition.lang = language;
 
 	recognition.continuous = false;
 
@@ -60,7 +63,7 @@ function speakPageContent() {
 								.join(". ");
 
 				utterance = new SpeechSynthesisUtterance(allText);
-				utterance.lang = navigator.language || "en-US";
+				utterance.lang = language;
 				utterance.rate = 1.0;
 				utterance.pitch = 1.0;
 
@@ -79,13 +82,15 @@ function speakPageContent() {
 				};
 }
 
-speakButton.addEventListener('click', () => {
-	if(isSpeaking) {
-		speechSynthesis.cancel()
-		speakIcon.classList.remove('bi-volume-mute-fill');
-		speakIcon.classList.add('bi-volume-up-fill');
-		isSpeaking = false;
-	} else {
-		speakPageContent();
+if (speakButton) {
+	speakButton.addEventListener('click', () => {
+		if(isSpeaking) {
+			speechSynthesis.cancel()
+			speakIcon.classList.remove('bi-volume-mute-fill');
+			speakIcon.classList.add('bi-volume-up-fill');
+			isSpeaking = false;
+		} else {
+			speakPageContent();
 		}
-});
+	});
+}

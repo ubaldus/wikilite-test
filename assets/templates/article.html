@@ -1,7 +1,7 @@
 {{template "head.html" . }}
 
   {{if .Results}}
-    <h1 class="mb-4">{{(index .Results 0).Title}}  <button class="btn speak-button"><i class="bi bi-volume-up-fill"></i></button></h1>
+    <h1 class="mb-5 text-center">{{(index .Results 0).Title}}  <button class="btn speak-button"><i class="bi bi-volume-up-fill"></i></button></h1>
    
     {{$currentSection := ""}}
     {{range .Results}}
@@ -14,9 +14,10 @@
     <p class="mb-3">{{.Text}}</p>
     {{end}}
     
-    {{if (ne (index .Results 0).Entity "")}}
-    <div class="text-muted mb-4"><small><a href="https://www.wikidata.org/wiki/{{(index .Results 0).Entity}}">{{(index .Results 0).Entity}}</a></small></div>
-    {{end}}
+    <div class="mb-4 text-center">
+      <small><a href="https://{{$.Language}}.wikipedia.org/?curid={{(index .Results 0).Article}}">W{{(index .Results 0).Article}}</a></small>
+      <small><a href="https://www.wikidata.org/wiki/{{(index .Results 0).Entity}}">{{(index .Results 0).Entity}}</a></small>
+    </div>
 
    {{else}}
     <div class="alert alert-warning">

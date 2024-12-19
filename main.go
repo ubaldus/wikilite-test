@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const Version = "0.0.22"
+const Version = "0.0.23"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -34,6 +34,8 @@ type Config struct {
 	logFile          string
 	cli              bool
 	limit            int
+	locale           string
+	language         string
 }
 
 var (
@@ -64,6 +66,7 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.logFile, "log-file", "", "Log file path")
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
 	flag.IntVar(&options.limit, "limit", 5, "Maximum number of search results")
+	flag.StringVar(&options.language, "language", "en", "Language")
 
 	flag.Usage = func() {
 		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")

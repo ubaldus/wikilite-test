@@ -194,6 +194,7 @@ func (h *DBHandler) Close() error {
 func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	sqlQuery := `
 		SELECT 
+			a.id AS article_id,
     	a.title AS article_title,
 			a.entity AS article_entity,
     	s.sub AS section_title,
@@ -222,6 +223,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	for rows.Next() {
 		var result ArticleResult
 		if err := rows.Scan(
+			&result.Article,
 			&result.Title,
 			&result.Entity,
 			&result.Section,

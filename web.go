@@ -47,10 +47,12 @@ func (s *WebServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 			Query    string
 			Results  []SearchResult
 			HasQuery bool
+			Language string
 		}{
 			Query:    query,
 			Results:  results,
 			HasQuery: query != "",
+			Language: options.language,
 		}
 
 		s.template.ExecuteTemplate(w, "search.html", data)
@@ -75,9 +77,13 @@ func (s *WebServer) handleArticle(w http.ResponseWriter, r *http.Request) {
 		}
 
 		data := struct {
-			Results []ArticleResult
+			Language     string
+			LanguageCode string
+			Results      []ArticleResult
 		}{
-			Results: results,
+			Language:     options.language,
+			LanguageCode: options.locale,
+			Results:      results,
 		}
 
 		s.template.ExecuteTemplate(w, "article.html", data)
