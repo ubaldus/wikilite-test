@@ -26,4 +26,4 @@ Wikilite is a tool that allows you to create a local SQLite database of Wikipedi
 
 *   **Wikipedia**: For providing the valuable data that powers Wikilite.
 *   **SQLite**: For providing the robust database engine that enables fast and efficient local data storage.
-*   **Qdrant**: For the high-performance vector database, used for advanced AI and semantic search capabilities.
+*   **Qdrant**: For the high-performance vector database, used for semantic search capabilities.
