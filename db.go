@@ -88,6 +88,9 @@ func (h *DBHandler) initializeDB() error {
 			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
 			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
 		END`,
+
+		`CREATE INDEX idx_hashes_pow_hash ON hashes (pow, hash);`,
+		`CREATE INDEX idx_embeddings_hash_status ON embeddings (hash, status);`,
 	}
 
 	for _, query := range queries {
@@ -355,14 +358,20 @@ func (h *DBHandler) UpdateEmbeddingStatus(hash string, status int) (err error) {
 
 func (h *DBHandler) ClearEmbeddings() (err error) {
 
-	_, err = h.db.Exec("UPDATE embeddings SET vectors = zeroblob(0) WHERE status > 1")
-	if err != nil {
-		return fmt.Errorf("error setting blob size to zero: %w", err)
+	if _, err = h.db.Exec(`UPDATE embeddings SET vectors = zeroblob(0) WHERE status > 1`); err != nil {
+		return
 	}
 
-	_, err = h.db.Exec("VACUUM")
-	if err != nil {
-		return fmt.Errorf("error running vacuum: %w", err)
+	if _, err = h.db.Exec(`DROP INDEX idx_hashes_pow_hash;`); err != nil {
+		return
+	}
+
+	if _, err = h.db.Exec(`DROP INDEX idx_embeddings_hash_status;`); err != nil {
+		return
+	}
+
+	if _, err = h.db.Exec(`VACUUM`); err != nil {
+		return
 	}
 
 	return
