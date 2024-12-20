@@ -239,7 +239,22 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 
 func (h *DBHandler) ProcessEmbeddings() error {
 	for {
-		sqlQuery := `SELECT h.hash, h.text FROM hashes h LEFT JOIN embeddings e ON h.hash = e.hash WHERE h.pow = 1 AND e.hash IS NULL OR e.status = 0 LIMIT 1;`
+		sqlQuery := `
+			SELECT h.hash, h.text
+			FROM hashes h
+			WHERE h.pow = 1
+			AND NOT EXISTS (
+				SELECT 1
+				FROM embeddings e
+				WHERE e.hash = h.hash
+			)
+			UNION ALL
+				SELECT h.hash, h.text
+				FROM hashes h
+				INNER JOIN embeddings e ON h.hash = e.hash
+				WHERE h.pow = 1 AND e.status = 0
+			LIMIT 1;
+		`
 		row := h.db.QueryRow(sqlQuery)
 
 		var hash string
