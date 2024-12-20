@@ -23,6 +23,7 @@ type Config struct {
 	aiApiKey         string
 	aiEmbeddingModel string
 	aiEmbeddingSize  int
+	aiEmbeddingBatch int
 	aiLlmModel       string
 	aiSync           bool
 	aiUrl            string
@@ -51,6 +52,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.ai, "ai", false, "Enable AI")
 	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI embeddings sync")
 	flag.IntVar(&options.aiEmbeddingSize, "ai-embedding-size", 1024, "AI embedding size")
+	flag.IntVar(&options.aiEmbeddingBatch, "ai-embedding-batch", 1000, "AI embedding batch processing")
 	flag.StringVar(&options.aiEmbeddingModel, "ai-embedding-model", "bge-m3", "AI embedding model")
 	flag.StringVar(&options.aiLlmModel, "ai-llm-model", "gemma2", "AI LLM model")
 	flag.StringVar(&options.aiUrl, "ai-url", "http://localhost:11434/v1/", "AI base url")
