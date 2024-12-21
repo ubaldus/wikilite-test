@@ -12,21 +12,17 @@
 
  {{if .HasQuery}}
    {{if len .Results}}
-   <div class="results">
+   <ol class="list-group list-group-numbered">
      {{range .Results}}
-     <div class="card mb-3">
-     <div class="card-header">
-       <a href="article?id={{.Article}}">{{.Title}}</a>
-     </div>
-     {{if .Text}}
-     <div class="card-body">
-      <p class="card-text">{{.Text}}</p>
-     </div>
+     <li class="list-group-item d-flex justify-content-between align-items-start">
+       <div class="ms-2 me-auto">
+         <div class="mb-1"><a href="article?id={{.Article}}">{{.Title}}</a></div>
+         <p>{{.Text}}</p>
+       </div>
+       <p><small>[{{.Type}}]</small></p>
+     </li>
      {{end}}
-     <div class="card-footer"> <small class="text-muted">{{.Type}}: {{.Power}}</small></div>
-     </div>
-     {{end}}
-   </div>
+   </ol>
    {{else}}
      <div class="alert alert-info">No results found for "{{.Query}}"</div>
    {{end}}
