@@ -8,7 +8,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/openai/openai-go v0.1.0-alpha.39
 	github.com/qdrant/go-client v1.12.0
-	golang.org/x/net v0.32.0
+	golang.org/x/net v0.33.0
 	google.golang.org/grpc v1.69.0
 )
 
