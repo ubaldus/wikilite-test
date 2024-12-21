@@ -556,7 +556,9 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		for i, text := range texts {
 			embeddings, err := aiEmbeddings(text)
 			if err != nil {
-				return fmt.Errorf("embeddings generation error: %w", err)
+				log.Printf("embeddings generation error: %w", err)
+				h.UpdateEmbeddingStatus(hashes[i], -1)
+				continue
 			}
 			embeddingsMap[hashes[i]] = embeddings
 		}
@@ -576,10 +578,7 @@ func (h *DBHandler) ProcessEmbeddings() error {
 			err = tx.QueryRow("SELECT status FROM embeddings WHERE hash = ?", hash).Scan(&existingStatus)
 			if err != nil {
 				if err == sql.ErrNoRows {
-					_, err = tx.Exec(`
-					INSERT INTO embeddings (hash, vectors, status)
-					VALUES (?, ?, ?)
-					`, hash, blob, 1)
+					_, err = tx.Exec(`INSERT INTO embeddings (hash, vectors, status) VALUES (?, ?, ?)`, hash, blob, 1)
 					if err != nil {
 						return fmt.Errorf("error inserting new embedding: %w", err)
 					}
@@ -589,9 +588,7 @@ func (h *DBHandler) ProcessEmbeddings() error {
 				}
 			} else {
 				if existingStatus == 0 {
-					_, err = tx.Exec(`
-					UPDATE embeddings SET vectors = ?, status = ? WHERE hash = ?
-					`, blob, 1, hash)
+					_, err = tx.Exec(`UPDATE embeddings SET vectors = ?, status = ? WHERE hash = ?`, blob, 1, hash)
 					if err != nil {
 						return fmt.Errorf("error updating existing embedding: %w", err)
 					}
