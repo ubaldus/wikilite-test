@@ -326,6 +326,22 @@ func (h *DBHandler) searchTitle(searchQuery string, limit int) ([]SearchResult, 
 		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
 		}
+
+		var text string
+		textQuery := `
+			SELECT h.text AS content
+			FROM articles a
+			JOIN sections s ON a.id = s.article_id
+			JOIN content c ON s.id = c.section_id
+			JOIN hashes h ON c.hash_id = h.id
+			WHERE a.id = ?
+			LIMIT 1
+		`
+		err = h.db.QueryRow(textQuery, result.Article).Scan(&text)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, fmt.Errorf("error fetching text for article %d: %v", result.Article, err)
+		}
+		result.Text = text
 		result.Type = "T"
 		results = append(results, result)
 	}
