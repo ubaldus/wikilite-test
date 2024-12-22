@@ -35,7 +35,8 @@ func (h *DBHandler) initializeDB() error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			hash TEXT UNIQUE NOT NULL,
 			text TEXT NOT NULL,
-			pow INTEGER DEFAULT 0
+			pow INTEGER DEFAULT 0,
+			embedding_status INTEGER DEFAULT 0
 		)`,
 
 		`CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
@@ -57,12 +58,6 @@ func (h *DBHandler) initializeDB() error {
 			hash_id INTEGER NOT NULL,
 			FOREIGN KEY(section_id) REFERENCES sections(id),
 			FOREIGN KEY(hash_id) REFERENCES hashes(id)
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS embeddings (
-			hash TEXT PRIMARY KEY NOT NULL,
-			vectors BLOB NOT NULL,
-			status INTEGER NOT NULL DEFAULT 0
 		)`,
 
 		`CREATE TRIGGER IF NOT EXISTS articles_ai AFTER INSERT ON articles BEGIN
@@ -235,56 +230,6 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	}
 
 	return results, nil
-}
-
-func (h *DBHandler) GetEmbedding(status int) (*EmbeddingData, error) {
-	sqlQuery := `
-		SELECT e.hash, e.vectors, e.status
-		FROM embeddings e
-		WHERE e.status = ?
-		LIMIT 1
-    `
-	row := h.db.QueryRow(sqlQuery, status)
-
-	var data EmbeddingData
-	var blob []byte
-	err := row.Scan(&data.Hash, &blob, &data.Status)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // No rows found, return nil
-		}
-		return nil, fmt.Errorf("error fetching embedding: %w", err)
-	}
-
-	vectors, err := blobToFloat32(blob)
-	if err != nil {
-		return nil, fmt.Errorf("error converting blob to float32: %w", err)
-	}
-
-	data.Vectors = vectors
-	return &data, nil
-}
-
-func (h *DBHandler) UpdateEmbeddingStatus(hash string, status int) (err error) {
-	_, err = h.db.Exec(
-		"UPDATE embeddings SET status = ? WHERE hash = ?",
-		status, hash,
-	)
-
-	return
-}
-
-func (h *DBHandler) ClearEmbeddings() (err error) {
-
-	if _, err = h.db.Exec(`UPDATE embeddings SET vectors = zeroblob(0) WHERE status > 1`); err != nil {
-		return
-	}
-
-	if _, err = h.db.Exec(`VACUUM`); err != nil {
-		return
-	}
-
-	return
 }
 
 func (h *DBHandler) searchTitle(searchQuery string, limit int) ([]SearchResult, error) {
@@ -520,100 +465,64 @@ func (h *DBHandler) searchContent(searchQuery string, limit int) ([]SearchResult
 	return results, nil
 }
 
+func (h *DBHandler) UpdateEmbeddingStatus(hash string, status int) (err error) {
+	_, err = h.db.Exec(`UPDATE hashes SET embedding_status = ? WHERE hash = ?`, status, hash)
+
+	return
+}
+
 func (h *DBHandler) ProcessEmbeddings() error {
-	batchSize := options.aiEmbeddingBatch
-
 	for {
-		sqlQuery := `
-			SELECT h.hash, h.text
-			FROM hashes h
-			WHERE h.pow = 1
-			AND NOT EXISTS (
-				SELECT 1
-				FROM embeddings e
-				WHERE e.hash = h.hash
-			)
-			UNION ALL
-				SELECT h.hash, h.text
-				FROM hashes h
-				INNER JOIN embeddings e ON h.hash = e.hash
-				WHERE h.pow = 1 AND e.status = 0
-            LIMIT ?;
-		`
-
-		rows, err := h.db.Query(sqlQuery, batchSize)
+		rows, err := h.db.Query(`SELECT hash, text FROM hashes WHERE embedding_status = 0`)
 		if err != nil {
-			return fmt.Errorf("error fetching batch of rows: %w", err)
+			return fmt.Errorf("error querying hashes: %w", err)
 		}
 		defer rows.Close()
 
-		hashes := make([]string, 0)
-		texts := make([]string, 0)
+		type HashData struct {
+			Hash string
+			Text string
+		}
+		var hashesData []HashData
 		for rows.Next() {
-			var hash string
-			var text string
-			if err := rows.Scan(&hash, &text); err != nil {
+			var data HashData
+			if err := rows.Scan(&data.Hash, &data.Text); err != nil {
 				return fmt.Errorf("error scanning row: %w", err)
 			}
-			hashes = append(hashes, hash)
-			texts = append(texts, text)
+			hashesData = append(hashesData, data)
 		}
 		if err := rows.Err(); err != nil {
 			return fmt.Errorf("error iterating rows: %w", err)
 		}
 
-		if len(hashes) == 0 {
+		if len(hashesData) == 0 {
 			return nil
 		}
 
-		log.Printf("Processing embeddings for %d hashes", len(hashes))
+		for _, hashData := range hashesData {
+			hash := hashData.Hash
+			text := hashData.Text
 
-		embeddingsMap := make(map[string][]float32, len(hashes))
-		for i, text := range texts {
-			embeddings, err := aiEmbeddings(text)
+			embedding, err := aiEmbeddings(text)
 			if err != nil {
-				log.Printf("embeddings generation error: %w", err)
-				h.UpdateEmbeddingStatus(hashes[i], -1)
+				log.Printf("embedding generation error for hash %s: %v", hash, err)
+				h.UpdateEmbeddingStatus(hash, -1)
 				continue
 			}
-			embeddingsMap[hashes[i]] = embeddings
-		}
 
-		tx, err := h.db.Begin()
-		if err != nil {
-			return fmt.Errorf("failed to start transaction: %w", err)
-		}
-		defer tx.Rollback()
-
-		for _, hash := range hashes {
-			blob, err := float32ToBlob(embeddingsMap[hash])
+			err = qdrantUpsertPoint(qd.PointsClient, options.qdrantCollection, hash, embedding)
 			if err != nil {
-				return fmt.Errorf("error converting embeddings to blob: %w", err)
+				log.Printf("error upserting point to qdrant for hash %s: %v", hash, err)
+				h.UpdateEmbeddingStatus(hash, -2)
+				continue
 			}
-			var existingStatus int
-			err = tx.QueryRow("SELECT status FROM embeddings WHERE hash = ?", hash).Scan(&existingStatus)
+
+			err = h.UpdateEmbeddingStatus(hash, 1)
 			if err != nil {
-				if err == sql.ErrNoRows {
-					_, err = tx.Exec(`INSERT INTO embeddings (hash, vectors, status) VALUES (?, ?, ?)`, hash, blob, 1)
-					if err != nil {
-						return fmt.Errorf("error inserting new embedding: %w", err)
-					}
-
-				} else {
-					return fmt.Errorf("error checking for existing hash: %w", err)
-				}
-			} else {
-				if existingStatus == 0 {
-					_, err = tx.Exec(`UPDATE embeddings SET vectors = ?, status = ? WHERE hash = ?`, blob, 1, hash)
-					if err != nil {
-						return fmt.Errorf("error updating existing embedding: %w", err)
-					}
-				}
+				log.Printf("error updating embedding status for hash %s: %v", hash, err)
 			}
+
 		}
 
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
 	}
 }

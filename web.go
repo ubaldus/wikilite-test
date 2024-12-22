@@ -77,13 +77,11 @@ func (s *WebServer) handleArticle(w http.ResponseWriter, r *http.Request) {
 		}
 
 		data := struct {
-			Language     string
-			LanguageCode string
-			Results      []ArticleResult
+			Language string
+			Results  []ArticleResult
 		}{
-			Language:     options.language,
-			LanguageCode: options.locale,
-			Results:      results,
+			Language: options.language,
+			Results:  results,
 		}
 
 		s.template.ExecuteTemplate(w, "article.html", data)
