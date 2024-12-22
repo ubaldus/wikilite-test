@@ -59,30 +59,6 @@ func (h *DBHandler) initializeDB() error {
 			FOREIGN KEY(section_id) REFERENCES sections(id),
 			FOREIGN KEY(hash_id) REFERENCES hashes(id)
 		)`,
-
-		`CREATE TRIGGER IF NOT EXISTS articles_ai AFTER INSERT ON articles BEGIN
-			INSERT INTO article_search(rowid, title) VALUES (new.id, new.title);
-		END`,
-		`CREATE TRIGGER IF NOT EXISTS articles_ad AFTER DELETE ON articles BEGIN
-			INSERT INTO article_search(article_search, rowid, title) VALUES('delete', old.id, old.title);
-		END`,
-		`CREATE TRIGGER IF NOT EXISTS articles_au AFTER UPDATE ON articles BEGIN
-			INSERT INTO article_search(article_search, rowid, title) VALUES('delete', old.id, old.title);
-			INSERT INTO article_search(rowid, title) VALUES (new.id, new.title);
-		END`,
-
-		`CREATE TRIGGER IF NOT EXISTS hashes_ai AFTER INSERT ON hashes BEGIN
-			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
-		END`,
-
-		`CREATE TRIGGER IF NOT EXISTS hashes_ad AFTER DELETE ON hashes BEGIN
-			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
-		END`,
-
-		`CREATE TRIGGER IF NOT EXISTS hashes_au AFTER UPDATE ON hashes BEGIN
-			INSERT INTO hash_search(hash_search, rowid, hash, text) VALUES('delete', old.id, old.hash, old.text);
-			INSERT INTO hash_search(rowid, hash, text) VALUES (new.id, new.hash, new.text);
-		END`,
 	}
 
 	for _, query := range queries {
@@ -109,6 +85,10 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 	return handler, nil
 }
 
+func (h *DBHandler) Close() error {
+	return h.db.Close()
+}
+
 func (h *DBHandler) SaveArticle(article OutputArticle) error {
 	tx, err := h.db.Begin()
 	if err != nil {
@@ -122,6 +102,11 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 	)
 	if err != nil {
 		return fmt.Errorf("error inserting article: %v", err)
+	}
+
+	_, err = tx.Exec("INSERT INTO article_search(rowid, title) VALUES (?, ?)", article.ID, article.Title)
+	if err != nil {
+		return fmt.Errorf("error inserting into article_search: %v", err)
 	}
 
 	for _, item := range article.Items {
@@ -157,11 +142,18 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 			if err != nil {
 				return fmt.Errorf("error inserting hash: %v", err)
 			}
-
 			var hashID int
 			err = tx.QueryRow("SELECT id FROM hashes WHERE hash = ?", hash).Scan(&hashID)
 			if err != nil {
 				return fmt.Errorf("error getting hash ID: %v", err)
+			}
+			_, err = tx.Exec(
+				"INSERT INTO hash_search(rowid, hash, text) VALUES (?, ?, ?)",
+				hashID, hash, text,
+			)
+
+			if err != nil {
+				return fmt.Errorf("error inserting hash to fts: %v", err)
 			}
 
 			_, err = tx.Exec("UPDATE hashes SET pow = pow + 1 WHERE id = ?", hashID)
@@ -180,10 +172,6 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 	}
 
 	return tx.Commit()
-}
-
-func (h *DBHandler) Close() error {
-	return h.db.Close()
 }
 
 func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
