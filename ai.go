@@ -1,3 +1,5 @@
+// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+
 package main
 
 import (

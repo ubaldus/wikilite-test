@@ -220,7 +220,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	return results, nil
 }
 
-func (h *DBHandler) searchTitle(searchQuery string, limit int) ([]SearchResult, error) {
+func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
 		WITH matched_titles AS (
   		SELECT rowid, title, bm25(article_search) AS relevance
@@ -359,7 +359,7 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 	return results, nil
 }
 
-func (h *DBHandler) searchContent(searchQuery string, limit int) ([]SearchResult, error) {
+func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
   	SELECT rowid, text, bm25(hash_search) as relevance
 		FROM hash_search

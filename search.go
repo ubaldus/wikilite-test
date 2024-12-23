@@ -1,3 +1,5 @@
+// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+
 package main
 
 import (
@@ -9,11 +11,11 @@ import (
 	"strings"
 )
 
-func search(query string, limit int) ([]SearchResult, error) {
+func Search(query string, limit int) ([]SearchResult, error) {
 	var results []SearchResult
 
 	log.Println("FTS title searching", query)
-	titles, err := db.searchTitle(query, limit)
+	titles, err := db.SearchTitle(query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +24,7 @@ func search(query string, limit int) ([]SearchResult, error) {
 	}
 
 	log.Println("FTS content searching", query)
-	contents, err := db.searchContent(query, limit)
+	contents, err := db.SearchContent(query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +54,7 @@ func search(query string, limit int) ([]SearchResult, error) {
 	return searchOptimize(results), nil
 }
 
-func searchCli() error {
+func SearchCli() error {
 	reader := bufio.NewReader(os.Stdin)
 	var articles map[int]int
 	for {
@@ -84,7 +86,7 @@ func searchCli() error {
 
 		} else {
 
-			results, err := search(query, options.limit)
+			results, err := Search(query, options.limit)
 			if err != nil {
 				log.Fatal("cli error", err)
 			}

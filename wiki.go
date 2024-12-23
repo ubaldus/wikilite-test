@@ -21,16 +21,24 @@ type WikiCombinedCloser struct {
 	respCloser io.Closer
 }
 
+type WikiFileReader interface {
+	Read([]byte) (int, error)
+	Close() error
+}
+
+func WikiImport(path string) error {
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return wikiDownloadAndProcessFile(path)
+	} else {
+		return wikiProcessLocalFile(path)
+	}
+}
+
 func (cc WikiCombinedCloser) Close() error {
 	if err := cc.gzipCloser.Close(); err != nil {
 		return err
 	}
 	return cc.respCloser.Close()
-}
-
-type WikiFileReader interface {
-	Read([]byte) (int, error)
-	Close() error
 }
 
 func wikiDownloadAndExtractFile(url string) (io.ReadCloser, error) {

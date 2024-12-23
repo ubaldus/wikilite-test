@@ -8,10 +8,9 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 )
 
-const Version = "0.0.29"
+const Version = "0.0.30"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -111,12 +110,7 @@ func main() {
 	defer db.Close()
 
 	if options.importPath != "" {
-		if strings.HasPrefix(options.importPath, "http://") || strings.HasPrefix(options.importPath, "https://") {
-			err = wikiDownloadAndProcessFile(options.importPath)
-		} else {
-			err = wikiProcessLocalFile(options.importPath)
-		}
-		if err != nil {
+		if err = WikiImport(options.importPath); err != nil {
 			log.Fatalf("Error processing import: %v\n", err)
 		}
 	}
@@ -135,7 +129,7 @@ func main() {
 	}
 
 	if options.cli {
-		searchCli()
+		SearchCli()
 	}
 
 	if options.web {

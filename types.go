@@ -38,9 +38,3 @@ type InputArticle struct {
 	} `json:"article_body"`
 	Identifier int `json:"identifier"`
 }
-
-type EmbeddingData struct {
-	Hash    string
-	Vectors []float32
-	Status  int
-}

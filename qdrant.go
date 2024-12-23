@@ -1,3 +1,5 @@
+// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+
 package main
 
 import (
@@ -16,7 +18,9 @@ type QdrantHandler struct {
 	Collection        string
 }
 
-func qdrantConnect(addr, collection string) (*QdrantHandler, error) {
+func qdrantInit(host string, port int, collectionName string, embeddingSize int) (*QdrantHandler, error) {
+	addr := fmt.Sprintf("%s:%d", host, port)
+
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Qdrant: %w", err)
@@ -25,11 +29,26 @@ func qdrantConnect(addr, collection string) (*QdrantHandler, error) {
 	collectionsClient := qdrant.NewCollectionsClient(conn)
 	pointsClient := qdrant.NewPointsClient(conn)
 
-	return &QdrantHandler{
+	handler := &QdrantHandler{
 		CollectionsClient: collectionsClient,
 		PointsClient:      pointsClient,
-		Collection:        collection,
-	}, nil
+		Collection:        collectionName,
+	}
+
+	exists, err := qdrantCollectionExists(handler.CollectionsClient, collectionName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if collection exists: %w", err)
+	}
+
+	if !exists {
+		err = qdrantCreateCollection(handler.CollectionsClient, collectionName, embeddingSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create collection: %w", err)
+		}
+		log.Printf("Qdrant collection '%s' created successfully.\n", collectionName)
+	}
+
+	return handler, nil
 }
 
 func qdrantCollectionExists(client qdrant.CollectionsClient, collectionName string) (bool, error) {
@@ -94,29 +113,6 @@ func qdrantUpsertPoints(client qdrant.PointsClient, collectionName string, hashE
 	return err
 }
 
-func qdrantInit(host string, port int, collectionName string, embeddingSize int) (*QdrantHandler, error) {
-	addr := fmt.Sprintf("%s:%d", host, port)
-	handler, err := qdrantConnect(addr, collectionName)
-	if err != nil {
-		return nil, err
-	}
-
-	exists, err := qdrantCollectionExists(handler.CollectionsClient, collectionName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check if collection exists: %w", err)
-	}
-
-	if !exists {
-		err = qdrantCreateCollection(handler.CollectionsClient, collectionName, embeddingSize)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create collection: %w", err)
-		}
-		log.Printf("Qdrant collection '%s' created successfully.\n", collectionName)
-	}
-
-	return handler, nil
-}
-
 func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []float32, limit int) ([]string, []float64, error) {
 	ctx := context.Background()
 	resp, err := client.Search(ctx, &qdrant.SearchPoints{
@@ -152,30 +148,4 @@ func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []fl
 		}
 	}
 	return hashes, scores, nil
-}
-
-func qdrantCheckIfHashExists(client qdrant.PointsClient, collectionName, hash string) (bool, error) {
-	ctx := context.Background()
-	filter := &qdrant.Filter{
-		Must: []*qdrant.Condition{
-			qdrant.NewMatch("hash", hash),
-		},
-	}
-
-	resp, err := client.Scroll(ctx, &qdrant.ScrollPoints{
-		CollectionName: collectionName,
-		Limit:          qdrant.PtrOf(uint32(1)),
-		WithPayload:    qdrant.NewWithPayload(true),
-		Filter:         filter,
-	})
-
-	if err != nil {
-		return false, fmt.Errorf("failed to scroll points: %w", err)
-	}
-
-	if len(resp.GetResult()) == 0 {
-		return false, nil
-	}
-
-	return true, nil
 }
