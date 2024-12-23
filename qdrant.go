@@ -149,3 +149,37 @@ func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []fl
 	}
 	return hashes, scores, nil
 }
+
+func qdrantHashExists(client qdrant.PointsClient, collectionName string, hash string) (bool, error) {
+	ctx := context.Background()
+
+	resp, err := client.Get(ctx, &qdrant.GetPoints{
+		CollectionName: collectionName,
+		Ids: []*qdrant.PointId{
+			{
+				PointIdOptions: &qdrant.PointId_Uuid{
+					Uuid: hash,
+				},
+			},
+		},
+		WithPayload: &qdrant.WithPayloadSelector{
+			SelectorOptions: &qdrant.WithPayloadSelector_Enable{
+				Enable: false,
+			},
+		},
+		WithVectors: &qdrant.WithVectorsSelector{
+			SelectorOptions: &qdrant.WithVectorsSelector_Enable{
+				Enable: false,
+			},
+		},
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to get point with uuid %s: %w", hash, err)
+	}
+
+	if len(resp.GetResult()) > 0 {
+		return true, nil
+	}
+
+	return false, nil
+}
