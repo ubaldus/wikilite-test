@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.0.30"
+const Version = "0.0.31"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -45,8 +45,8 @@ var (
 func parseConfig() (*Config, error) {
 	options = &Config{}
 	flag.BoolVar(&options.ai, "ai", false, "Enable AI")
-	flag.IntVar(&options.aiEmbeddingSize, "ai-embedding-size", 1024, "AI embedding size")
-	flag.StringVar(&options.aiEmbeddingModel, "ai-embedding-model", "bge-m3", "AI embedding model")
+	flag.IntVar(&options.aiEmbeddingSize, "ai-embedding-size", 384, "AI embedding size")
+	flag.StringVar(&options.aiEmbeddingModel, "ai-embedding-model", "all-minilm", "AI embedding model")
 	flag.StringVar(&options.aiLlmModel, "ai-llm-model", "gemma2", "AI LLM model")
 	flag.StringVar(&options.aiUrl, "ai-url", "http://localhost:11434/v1/", "AI base url")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
