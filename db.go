@@ -455,6 +455,12 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 func (h *DBHandler) ProcessEmbeddings() error {
 	batchSize := 1000
 	offset := 0
+	totalCount := 0
+
+	err := h.db.QueryRow("SELECT COUNT(*) FROM hashes").Scan(&totalCount)
+	if err != nil {
+		return fmt.Errorf("error getting total count of hashes: %w", err)
+	}
 
 	for {
 		rows, err := h.db.Query(`SELECT hash, text FROM hashes LIMIT ? OFFSET ?`, batchSize, offset)
@@ -493,17 +499,17 @@ func (h *DBHandler) ProcessEmbeddings() error {
 
 			exists, err := qdrantHashExists(qd.PointsClient, options.qdrantCollection, hash)
 			if err != nil {
-				log.Printf("error checking qdrant existence for hash %s: %v", hash, err)
+				log.Printf("Error checking qdrant existence for hash %s: %v", hash, err)
 				continue
 			}
 			if exists {
-				log.Printf("hash %s already exists in qdrant.", hash)
+				log.Printf("Hash %s already exists in qdrant", hash)
 				continue
 			}
 
 			embedding, err := aiEmbeddings(text)
 			if err != nil {
-				log.Printf("embedding generation error for hash %s: %v", hash, err)
+				log.Printf("Embedding generation error for hash %s: %v", hash, err)
 				continue
 			}
 			hashEmbeddings[hash] = embedding
@@ -513,9 +519,13 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		if len(hashEmbeddings) > 0 {
 			err = qdrantUpsertPoints(qd.PointsClient, options.qdrantCollection, hashEmbeddings)
 			if err != nil {
-				log.Printf("error upserting batch to qdrant: %v", err)
+				log.Printf("Error upserting batch to qdrant: %v", err)
 			}
 		}
+
+		processedCount := offset + len(hashesData)
+		progress := float64(processedCount) / float64(totalCount) * 100
+		log.Printf("Embedding progress: %.2f%%", progress)
 
 		offset += batchSize
 	}

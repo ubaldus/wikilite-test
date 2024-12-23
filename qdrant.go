@@ -83,7 +83,6 @@ func qdrantCreateCollection(client qdrant.CollectionsClient, collectionName stri
 }
 
 func qdrantUpsertPoints(client qdrant.PointsClient, collectionName string, hashEmbeddings map[string][]float32) error {
-	log.Printf("Qdrant upserting %d hashes in a batch\n", len(hashEmbeddings))
 	ctx := context.Background()
 	true_val := true
 	points := make([]*qdrant.PointStruct, 0, len(hashEmbeddings))
