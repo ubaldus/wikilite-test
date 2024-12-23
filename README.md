@@ -1,6 +1,6 @@
 # Wikilite
 
-Wikilite is a tool that allows you to create a local SQLite database of Wikipedia articles, indexed with FTS5 for fast and efficient lexical searching. It further enhances search capabilities by integrating a vector database (Qdrant) for semantic search, allowing users to find information even when their queries don't match keywords exactly. Built with Go, Wikilite provides a command-line interface (CLI) and an optional web interface, enabling offline access, browsing, and searching of Wikipedia content.
+Wikilite is a tool that allows you to create a local SQLite database of Wikipedia articles, indexed with FTS5 for fast and efficient lexical searching. It further enhances search capabilities by leveraging an existing Qdrant vector database server for semantic search, enabling users to find information even when their queries don't match keywords exactly. Built with Go, Wikilite provides a command-line interface (CLI) and an optional web interface, enabling offline access, browsing, and searching of Wikipedia content.
 
 ## Features
 
