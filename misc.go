@@ -14,6 +14,7 @@ import (
 	"math"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 //go:embed assets
@@ -95,4 +96,15 @@ func extractNumberFromString(s string) int {
 		return num
 	}
 	return 0
+}
+
+func cleanHashes(hashes []string) []string {
+	cleanedHashes := make([]string, len(hashes))
+
+	for i, hash := range hashes {
+		cleanedHash := strings.ToLower(strings.ReplaceAll(hash, "-", ""))
+		cleanedHashes[i] = cleanedHash
+	}
+
+	return cleanedHashes
 }

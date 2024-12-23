@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math/rand"
 
 	"github.com/qdrant/go-client/qdrant"
 	"google.golang.org/grpc"
@@ -64,36 +63,33 @@ func qdrantCreateCollection(client qdrant.CollectionsClient, collectionName stri
 	return err
 }
 
-func qdrantUpsertPoint(client qdrant.PointsClient, collectionName, hash string, embedding []float32) error {
-	log.Printf("Qdrant upserting hash %s\n", hash)
+func qdrantUpsertPoints(client qdrant.PointsClient, collectionName string, hashEmbeddings map[string][]float32) error {
+	log.Printf("Qdrant upserting %d hashes in a batch\n", len(hashEmbeddings))
 	ctx := context.Background()
 	true_val := true
-	_, err := client.Upsert(ctx, &qdrant.UpsertPoints{
-		CollectionName: collectionName,
-		Wait:           &true_val,
-		Points: []*qdrant.PointStruct{
-			{
-				Id: &qdrant.PointId{
-					PointIdOptions: &qdrant.PointId_Num{
-						Num: uint64(rand.Int()),
-					},
+	points := make([]*qdrant.PointStruct, 0, len(hashEmbeddings))
+
+	for hash, embedding := range hashEmbeddings {
+		points = append(points, &qdrant.PointStruct{
+			Id: &qdrant.PointId{
+				PointIdOptions: &qdrant.PointId_Uuid{
+					Uuid: hash,
 				},
-				Vectors: &qdrant.Vectors{
-					VectorsOptions: &qdrant.Vectors_Vector{
-						Vector: &qdrant.Vector{
-							Data: embedding,
-						},
-					},
-				},
-				Payload: map[string]*qdrant.Value{
-					"hash": {
-						Kind: &qdrant.Value_StringValue{
-							StringValue: hash,
-						},
+			},
+			Vectors: &qdrant.Vectors{
+				VectorsOptions: &qdrant.Vectors_Vector{
+					Vector: &qdrant.Vector{
+						Data: embedding,
 					},
 				},
 			},
-		},
+		})
+	}
+
+	_, err := client.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: collectionName,
+		Wait:           &true_val,
+		Points:         points,
 	})
 	return err
 }
@@ -129,7 +125,12 @@ func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []fl
 		Vector:         vector,
 		WithPayload: &qdrant.WithPayloadSelector{
 			SelectorOptions: &qdrant.WithPayloadSelector_Enable{
-				Enable: true,
+				Enable: false,
+			},
+		},
+		WithVectors: &qdrant.WithVectorsSelector{
+			SelectorOptions: &qdrant.WithVectorsSelector_Enable{
+				Enable: false,
 			},
 		},
 	})
@@ -141,19 +142,14 @@ func qdrantSearch(client qdrant.PointsClient, collectionName string, vector []fl
 	scores := make([]float64, 0, len(resp.GetResult()))
 
 	for _, point := range resp.GetResult() {
-		hashValue, ok := point.Payload["hash"]
-		if !ok {
-			log.Println("Qdrant, no hash value found in payload for a point, skipping.")
-			continue
-		}
+		if id, ok := point.Id.PointIdOptions.(*qdrant.PointId_Uuid); ok {
+			hashes = append(hashes, id.Uuid)
+			scores = append(scores, float64(point.Score))
 
-		hash, ok := hashValue.Kind.(*qdrant.Value_StringValue)
-		if !ok {
-			log.Printf("Qdrant, unexpected type for hash value: %T\n", hashValue.Kind)
+		} else {
+			log.Printf("Qdrant, unexpected type for point ID: %T\n", point.Id.PointIdOptions)
 			continue
 		}
-		hashes = append(hashes, hash.StringValue)
-		scores = append(scores, float64(point.Score))
 	}
 	return hashes, scores, nil
 }

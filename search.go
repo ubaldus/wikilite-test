@@ -37,7 +37,10 @@ func search(query string, limit int) ([]SearchResult, error) {
 			return nil, fmt.Errorf("embeddings generation error: %w", err)
 		}
 		hashes, scores, err := qdrantSearch(qd.PointsClient, options.qdrantCollection, vectorsQuery, limit*limit)
-		embeddingsResults, err := db.SearchHash(hashes, scores, limit)
+		if err != nil {
+			return nil, fmt.Errorf("embedding search error: %w", err)
+		}
+		embeddingsResults, err := db.SearchHash(cleanHashes(hashes), scores, limit)
 		if err != nil {
 			return nil, fmt.Errorf("database hashes search error: %w", err)
 		}

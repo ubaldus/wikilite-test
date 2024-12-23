@@ -461,7 +461,7 @@ func (h *DBHandler) UpdateEmbeddingStatus(hash string, status int) (err error) {
 
 func (h *DBHandler) ProcessEmbeddings() error {
 	for {
-		rows, err := h.db.Query(`SELECT hash, text FROM hashes WHERE embedding_status = 0`)
+		rows, err := h.db.Query(`SELECT hash, text FROM hashes WHERE embedding_status = 0 LIMIT ?`, 1000)
 		if err != nil {
 			return fmt.Errorf("error querying hashes: %w", err)
 		}
@@ -487,6 +487,8 @@ func (h *DBHandler) ProcessEmbeddings() error {
 			return nil
 		}
 
+		hashEmbeddings := make(map[string][]float32)
+		var hashesToUpdate []string
 		for _, hashData := range hashesData {
 			hash := hashData.Hash
 			text := hashData.Text
@@ -498,19 +500,24 @@ func (h *DBHandler) ProcessEmbeddings() error {
 				continue
 			}
 
-			err = qdrantUpsertPoint(qd.PointsClient, options.qdrantCollection, hash, embedding)
-			if err != nil {
-				log.Printf("error upserting point to qdrant for hash %s: %v", hash, err)
-				h.UpdateEmbeddingStatus(hash, -2)
-				continue
-			}
-
-			err = h.UpdateEmbeddingStatus(hash, 1)
-			if err != nil {
-				log.Printf("error updating embedding status for hash %s: %v", hash, err)
-			}
-
+			hashEmbeddings[hash] = embedding
+			hashesToUpdate = append(hashesToUpdate, hash)
 		}
-
+		if len(hashEmbeddings) > 0 {
+			err = qdrantUpsertPoints(qd.PointsClient, options.qdrantCollection, hashEmbeddings)
+			if err != nil {
+				log.Printf("error upserting batch to qdrant: %v", err)
+				for _, hash := range hashesToUpdate {
+					h.UpdateEmbeddingStatus(hash, -2)
+				}
+			} else {
+				for _, hash := range hashesToUpdate {
+					err = h.UpdateEmbeddingStatus(hash, 1)
+					if err != nil {
+						log.Printf("error updating embedding status for hash %s: %v", hash, err)
+					}
+				}
+			}
+		}
 	}
 }
