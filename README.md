@@ -22,6 +22,18 @@ Wikilite is a tool that allows you to create a local SQLite database of Wikipedi
 1.  **Start the web server**: `./wikilite --web --db <file>`
 2.  **Access the web interface**: Open a web browser and navigate to `http://localhost:35248`
 
+## API Overview
+
+Wikilite provides a comprehensive RESTful API that supports both GET and POST methods for all endpoints. The main endpoints include:
+
+* `/api/search`: Combined search across titles, content, and vectors (if enabled)
+* `/api/search/title`: Search only article titles
+* `/api/search/content`: Search article content
+* `/api/search/vectors`: Vector-based semantic search (requires AI and Qdrant)
+* `/api/article`: Retrieve complete articles by ID
+
+All search endpoints support pagination through the `limit` parameter and return results in a consistent JSON format. For detailed API documentation and examples, please refer to the [API Documentation](API.md).
+
 ## Semantic Search Details
 
 Wikilite utilizes text embeddings to power its semantic search capabilities. This means that instead of just looking for exact keyword matches (like FTS5 does), it searches for paragraphs that have a *similar meaning* to your query. This is particularly helpful in scenarios where:
