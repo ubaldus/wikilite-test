@@ -150,14 +150,10 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 		for _, entry := range textEntries {
 			hash := entry["hash"]
 			text := entry["text"]
-			blob := []byte(text)
-			if options.compress {
-				blob = TextDeflate(text)
-			}
 
 			result, err = tx.Exec(
 				"INSERT OR IGNORE INTO hashes (hash, text) VALUES (?, ?)",
-				hash, blob,
+				hash, text,
 			)
 			if err != nil {
 				return fmt.Errorf("error inserting hash: %v", err)
@@ -198,23 +194,23 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	sqlQuery := `
 		SELECT 
 			a.id AS article_id,
-    	a.title AS article_title,
+			a.title AS article_title,
 			a.entity AS article_entity,
-    	s.sub AS section_title,
-    	h.text AS content
+			s.sub AS section_title,
+			h.text AS content
 		FROM 
-    	articles a
+			articles a
 		JOIN 
-    	sections s ON a.id = s.article_id
+			sections s ON a.id = s.article_id
 		JOIN 
-    	content c ON s.id = c.section_id
+			content c ON s.id = c.section_id
 		JOIN 
-    	hashes h ON c.hash_id = h.id
+			hashes h ON c.hash_id = h.id
 		WHERE 
-    	a.id = ?
+			a.id = ?
 		ORDER BY 
-    	s.id ASC, c.id ASC;
-    `
+			s.id ASC, c.id ASC;
+	`
 
 	rows, err := h.db.Query(sqlQuery, articleID)
 	if err != nil {
@@ -222,25 +218,60 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	}
 	defer rows.Close()
 
-	var blob []byte
-	var results []ArticleResult
+	articleMap := make(map[int]*ArticleResult)
+
 	for rows.Next() {
-		var result ArticleResult
+		var (
+			articleID    int
+			title        string
+			entity       string
+			sectionTitle string
+			content      string
+		)
+
 		if err := rows.Scan(
-			&result.Article,
-			&result.Title,
-			&result.Entity,
-			&result.Section,
-			&blob,
+			&articleID,
+			&title,
+			&entity,
+			&sectionTitle,
+			&content,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
 		}
-		if options.compress {
-			result.Text = TextInflate(blob)
-		} else {
-			result.Text = string(blob)
+
+		article, exists := articleMap[articleID]
+		if !exists {
+			article = &ArticleResult{
+				Title:    title,
+				Entity:   entity,
+				Article:  articleID,
+				Sections: []ArticleResultSection{},
+			}
+			articleMap[articleID] = article
 		}
-		results = append(results, result)
+
+		var section *ArticleResultSection
+		for i, sec := range article.Sections {
+			if sec.Title == sectionTitle {
+				section = &article.Sections[i]
+				break
+			}
+		}
+
+		if section == nil {
+			article.Sections = append(article.Sections, ArticleResultSection{
+				Title: sectionTitle,
+				Texts: []string{},
+			})
+			section = &article.Sections[len(article.Sections)-1]
+		}
+
+		section.Texts = append(section.Texts, content)
+	}
+
+	results := make([]ArticleResult, 0, len(articleMap))
+	for _, article := range articleMap {
+		results = append(results, *article)
 	}
 
 	return results, nil
@@ -286,7 +317,6 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			return nil, fmt.Errorf("error scanning result: %v", err)
 		}
 
-		var blob []byte
 		textQuery := `
 			SELECT h.text AS content
 			FROM articles a
@@ -296,14 +326,9 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			WHERE a.id = ?
 			LIMIT 1
 		`
-		err = h.db.QueryRow(textQuery, result.Article).Scan(&blob)
+		err = h.db.QueryRow(textQuery, result.Article).Scan(&result.Text)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, fmt.Errorf("error fetching text for article %d: %v", result.Article, err)
-		}
-		if options.compress {
-			result.Text = TextInflate(blob)
-		} else {
-			result.Text = string(blob)
 		}
 		result.Type = "T"
 		results = append(results, result)
@@ -351,7 +376,6 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 	}
 	defer rows.Close()
 
-	var blob []byte
 	var results []SearchResult
 	seenArticleIds := make(map[int]bool)
 	for rows.Next() {
@@ -366,7 +390,7 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 			&result.Title,
 			&result.Entity,
 			&result.Section,
-			&blob,
+			&result.Text,
 			&hash,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
@@ -380,11 +404,6 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 		result.Article = articleId
 		result.Type = "V"
 		result.Power = hashScoreMap[hash]
-		if options.compress {
-			result.Text = TextInflate(blob)
-		} else {
-			result.Text = string(blob)
-		}
 		results = append(results, result)
 	}
 
@@ -417,15 +436,9 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 	}
 	hashResults := make([]HashResult, 0)
 	for rows.Next() {
-		var blob []byte
 		var result HashResult
-		if err := rows.Scan(&result.RowID, &blob, &result.Relevance); err != nil {
+		if err := rows.Scan(&result.RowID, &result.Text, &result.Relevance); err != nil {
 			return nil, fmt.Errorf("error scanning hash result: %v", err)
-		}
-		if options.compress {
-			result.Text = TextInflate(blob)
-		} else {
-			result.Text = string(blob)
 		}
 		hashResults = append(hashResults, result)
 	}
@@ -526,6 +539,11 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		return fmt.Errorf("error getting total count of hashes: %w", err)
 	}
 
+	err = qdrantIndexOff(qd.CollectionsClient, options.qdrantCollection)
+	if err != nil {
+		return fmt.Errorf("error disabling qdrant indexing: %w", err)
+	}
+
 	startTime := time.Now()
 	for {
 		rows, err := h.db.Query(`SELECT hash, text FROM hashes LIMIT ? OFFSET ?`, batchSize, offset)
@@ -538,19 +556,12 @@ func (h *DBHandler) ProcessEmbeddings() error {
 			Hash string
 			Text string
 		}
-		var blob []byte
 		var hashesData []HashData
 		for rows.Next() {
 			var data HashData
-			if err := rows.Scan(&data.Hash, &blob); err != nil {
+			if err := rows.Scan(&data.Hash, &data.Text); err != nil {
 				return fmt.Errorf("error scanning row: %w", err)
 			}
-			if options.compress {
-				data.Text = TextInflate(blob)
-			} else {
-				data.Text = string(blob)
-			}
-
 			hashesData = append(hashesData, data)
 		}
 		if err := rows.Err(); err != nil {
@@ -604,6 +615,11 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		log.Printf("Embedding progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
 
 		offset += batchSize
+	}
+
+	err = qdrantIndexOn(qd.CollectionsClient, options.qdrantCollection)
+	if err != nil {
+		return fmt.Errorf("error enabling qdrant indexing: %w", err)
 	}
 
 	return nil

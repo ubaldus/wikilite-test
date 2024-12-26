@@ -1,25 +1,22 @@
 {{template "head.html" . }}
 
   {{if .Results}}
-    <h1 class="mb-5 text-center">{{(index .Results 0).Title}}  <button class="btn speak-button"><i class="bi bi-volume-up-fill"></i></button></h1>
+    {{$firstResult := index .Results 0}}
+    <h1 class="mb-5 text-center">{{$firstResult.Title}}  <button class="btn speak-button"><i class="bi bi-volume-up-fill"></i></button></h1>
    
-    {{$currentSection := ""}}
-    {{range .Results}}
-      {{if ne .Section $currentSection}}
-        {{if ne .Section ""}}
-    <h2 class="mt-4 mb-3">{{.Section}}</h2>
-        {{end}}
-        {{$currentSection = .Section}}
+    {{range $firstResult.Sections}}
+      <h2 class="mt-4 mb-3">{{.Title}}</h2>
+      {{range .Texts}}
+        <p class="mb-3">{{.}}</p>
       {{end}}
-    <p class="mb-3">{{.Text}}</p>
     {{end}}
     
     <div class="mb-4 text-center">
-      <small><a href="https://{{$.Language}}.wikipedia.org/?curid={{(index .Results 0).Article}}">W{{(index .Results 0).Article}}</a></small>
-      <small><a href="https://www.wikidata.org/wiki/{{(index .Results 0).Entity}}">{{(index .Results 0).Entity}}</a></small>
+      <small><a href="https://{{$.Language}}.wikipedia.org/?curid={{$firstResult.Article}}">W{{$firstResult.Article}}</a></small>
+      <small><a href="https://www.wikidata.org/wiki/{{$firstResult.Entity}}">{{$firstResult.Entity}}</a></small>
     </div>
 
-   {{else}}
+  {{else}}
     <div class="alert alert-warning">
       Article not found.
     </div>

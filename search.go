@@ -48,46 +48,45 @@ func Search(query string, limit int) ([]SearchResult, error) {
 
 func SearchCli() error {
 	reader := bufio.NewReader(os.Stdin)
-	var articles map[int]int
+	articles := make(map[int]int)
+
 	for {
 		fmt.Print("> ")
 		query, _ := reader.ReadString('\n')
 		query = strings.TrimSpace(query)
+
 		queryIdx, err := strconv.Atoi(query)
-
-		if err == nil && articles[queryIdx] > 0 {
-			article, err := db.GetArticle(articles[queryIdx])
-			if err != nil {
-				log.Fatal("cli error", err)
-			}
-
-			title := ""
-			section := ""
-			for _, entry := range article {
-				if entry.Title != title {
-					title = entry.Title
-					fmt.Printf("%s\n\n", title)
+		if err == nil {
+			if articleID, exists := articles[queryIdx]; exists {
+				article, err := db.GetArticle(articleID)
+				if err != nil {
+					log.Fatal("CLI error: ", err)
 				}
-				if entry.Section != section {
-					section = entry.Section
-					fmt.Printf("\n%s\n\n", section)
+
+				for _, entry := range article {
+					fmt.Printf("%s\n\n", entry.Title)
+
+					for _, section := range entry.Sections {
+						fmt.Printf("%s\n\n", section.Title)
+						for _, text := range section.Texts {
+							fmt.Println(text)
+						}
+						fmt.Println()
+					}
 				}
-				fmt.Println(entry.Text)
+				continue
 			}
-			fmt.Println()
+		}
 
-		} else {
+		results, err := Search(query, options.limit)
+		if err != nil {
+			log.Fatal("CLI error: ", err)
+		}
 
-			results, err := Search(query, options.limit)
-			if err != nil {
-				log.Fatal("cli error", err)
-			}
-
-			articles = make(map[int]int)
-			for i, result := range results {
-				articles[i+1] = result.Article
-				fmt.Printf("% 3d [%s] %s\n", i+1, result.Type, result.Title)
-			}
+		articles = make(map[int]int)
+		for i, result := range results {
+			articles[i+1] = result.Article
+			fmt.Printf("% 3d [%s] %s\n", i+1, result.Type, result.Title)
 		}
 	}
 }

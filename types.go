@@ -12,12 +12,16 @@ type SearchResult struct {
 	Power   float64 `json:"power"`
 }
 
+type ArticleResultSection struct {
+	Title string   `json:"title"`
+	Texts []string `json:"texts"`
+}
+
 type ArticleResult struct {
-	Title   string `json:"title"`
-	Entity  string `json:"entity"`
-	Section string `json:"section"`
-	Text    string `json:"text"`
-	Article int    `json:"article"`
+	Article  int                    `json:"article"`
+	Title    string                 `json:"title"`
+	Entity   string                 `json:"entity"`
+	Sections []ArticleResultSection `json:"sections"`
 }
 
 type OutputArticle struct {

@@ -182,3 +182,32 @@ func qdrantHashExists(client qdrant.PointsClient, collectionName string, hash st
 
 	return false, nil
 }
+
+func qdrantIndexOn(client qdrant.CollectionsClient, collectionName string) error {
+	return qdrantIndexing(client, collectionName, 20000)
+}
+
+func qdrantIndexOff(client qdrant.CollectionsClient, collectionName string) error {
+	return qdrantIndexing(client, collectionName, 0)
+}
+
+func qdrantIndexing(client qdrant.CollectionsClient, collectionName string, value int) error {
+	ctx := context.Background()
+
+	threshold := uint64(value)
+
+	updateRequest := &qdrant.UpdateCollection{
+		CollectionName: collectionName,
+		OptimizersConfig: &qdrant.OptimizersConfigDiff{
+			IndexingThreshold: &threshold,
+		},
+	}
+
+	_, err := client.Update(ctx, updateRequest)
+	if err != nil {
+		return fmt.Errorf("failed to update collection optimizers_config: %w", err)
+	}
+
+	log.Printf("Qdrant collection '%s' optimizers_config updated successfully.\n", collectionName)
+	return nil
+}
