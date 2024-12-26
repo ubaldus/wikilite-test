@@ -12,6 +12,19 @@ import (
 	"strconv"
 )
 
+type APIRequest struct {
+	Query string `json:"query,omitempty"`
+	Limit int    `json:"limit,omitempty"`
+	ID    int    `json:"id,omitempty"`
+}
+
+type APIResponse struct {
+	Status  string          `json:"status"`
+	Message string          `json:"message,omitempty"`
+	Results []SearchResult  `json:"results,omitempty"`
+	Article []ArticleResult `json:"article,omitempty"`
+}
+
 type WebServer struct {
 	template *template.Template
 }
@@ -88,9 +101,301 @@ func (s *WebServer) handleArticle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *WebServer) handleAPISearch(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var request APIRequest
+	var query string
+	var limit int = options.limit
+	var err error
+
+	if r.Method == "POST" {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			json.NewEncoder(w).Encode(APIResponse{
+				Status:  "error",
+				Message: "Invalid JSON request",
+			})
+			return
+		}
+		query = request.Query
+		if request.Limit > 0 {
+			limit = request.Limit
+		}
+	} else {
+		query = r.URL.Query().Get("query")
+		if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+			limit, err = strconv.Atoi(limitStr)
+			if err != nil {
+				json.NewEncoder(w).Encode(APIResponse{
+					Status:  "error",
+					Message: "Invalid limit parameter",
+				})
+				return
+			}
+		}
+	}
+
+	if query == "" {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: "Query parameter is required",
+		})
+		return
+	}
+
+	results, err := Search(query, limit)
+	if err != nil {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Search error: %v", err),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(APIResponse{
+		Status:  "success",
+		Results: results,
+	})
+}
+
+func (s *WebServer) handleAPISearchTitle(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var request APIRequest
+	var query string
+	var limit int = options.limit
+	var err error
+
+	if r.Method == "POST" {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			json.NewEncoder(w).Encode(APIResponse{
+				Status:  "error",
+				Message: "Invalid JSON request",
+			})
+			return
+		}
+		query = request.Query
+		if request.Limit > 0 {
+			limit = request.Limit
+		}
+	} else {
+		query = r.URL.Query().Get("query")
+		if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+			limit, err = strconv.Atoi(limitStr)
+			if err != nil {
+				json.NewEncoder(w).Encode(APIResponse{
+					Status:  "error",
+					Message: "Invalid limit parameter",
+				})
+				return
+			}
+		}
+	}
+
+	if query == "" {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: "Query parameter is required",
+		})
+		return
+	}
+
+	results, err := db.SearchTitle(query, limit)
+	if err != nil {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Title search error: %v", err),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(APIResponse{
+		Status:  "success",
+		Results: results,
+	})
+}
+
+func (s *WebServer) handleAPISearchContent(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var request APIRequest
+	var query string
+	var limit int = options.limit
+	var err error
+
+	if r.Method == "POST" {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			json.NewEncoder(w).Encode(APIResponse{
+				Status:  "error",
+				Message: "Invalid JSON request",
+			})
+			return
+		}
+		query = request.Query
+		if request.Limit > 0 {
+			limit = request.Limit
+		}
+	} else {
+		query = r.URL.Query().Get("query")
+		if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+			limit, err = strconv.Atoi(limitStr)
+			if err != nil {
+				json.NewEncoder(w).Encode(APIResponse{
+					Status:  "error",
+					Message: "Invalid limit parameter",
+				})
+				return
+			}
+		}
+	}
+
+	if query == "" {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: "Query parameter is required",
+		})
+		return
+	}
+
+	results, err := db.SearchContent(query, limit)
+	if err != nil {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Content search error: %v", err),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(APIResponse{
+		Status:  "success",
+		Results: results,
+	})
+}
+
+func (s *WebServer) handleAPISearchVectors(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if !options.ai || !options.qdrant {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: "Vector search is not enabled",
+		})
+		return
+	}
+
+	var request APIRequest
+	var query string
+	var limit int = options.limit
+	var err error
+
+	if r.Method == "POST" {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			json.NewEncoder(w).Encode(APIResponse{
+				Status:  "error",
+				Message: "Invalid JSON request",
+			})
+			return
+		}
+		query = request.Query
+		if request.Limit > 0 {
+			limit = request.Limit
+		}
+	} else {
+		query = r.URL.Query().Get("query")
+		if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+			limit, err = strconv.Atoi(limitStr)
+			if err != nil {
+				json.NewEncoder(w).Encode(APIResponse{
+					Status:  "error",
+					Message: "Invalid limit parameter",
+				})
+				return
+			}
+		}
+	}
+
+	if query == "" {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: "Query parameter is required",
+		})
+		return
+	}
+
+	results, err := db.SearchVectors(query, limit)
+	if err != nil {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Vector search error: %v", err),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(APIResponse{
+		Status:  "success",
+		Results: results,
+	})
+}
+
+func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var request APIRequest
+	var id int
+	var err error
+
+	if r.Method == "POST" {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			json.NewEncoder(w).Encode(APIResponse{
+				Status:  "error",
+				Message: "Invalid JSON request",
+			})
+			return
+		}
+		id = request.ID
+	} else {
+		idStr := r.URL.Query().Get("id")
+		if idStr == "" {
+			json.NewEncoder(w).Encode(APIResponse{
+				Status:  "error",
+				Message: "ID parameter is required",
+			})
+			return
+		}
+		id, err = strconv.Atoi(idStr)
+		if err != nil {
+			json.NewEncoder(w).Encode(APIResponse{
+				Status:  "error",
+				Message: "Invalid ID parameter",
+			})
+			return
+		}
+	}
+
+	article, err := db.GetArticle(id)
+	if err != nil {
+		json.NewEncoder(w).Encode(APIResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Error retrieving article: %v", err),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(APIResponse{
+		Status:  "success",
+		Article: article,
+	})
+}
+
 func (s *WebServer) Start(host string, port int) error {
 	http.HandleFunc("/", s.handleSearch)
 	http.HandleFunc("/article", s.handleArticle)
+
+	http.HandleFunc("/api/search", s.handleAPISearch)
+	http.HandleFunc("/api/search/title", s.handleAPISearchTitle)
+	http.HandleFunc("/api/search/content", s.handleAPISearchContent)
+	http.HandleFunc("/api/search/vectors", s.handleAPISearchVectors)
+	http.HandleFunc("/api/article", s.handleAPIArticle)
 
 	subFS, err := fs.Sub(assets, "assets/static")
 	if err != nil {

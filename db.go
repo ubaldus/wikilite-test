@@ -479,6 +479,27 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 	return results, nil
 }
 
+func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, error) {
+	var results []SearchResult
+
+	vectorsQuery, err := aiEmbeddings(query)
+	if err != nil {
+		return nil, fmt.Errorf("embeddings generation error: %w", err)
+	}
+	hashes, scores, err := qdrantSearch(qd.PointsClient, options.qdrantCollection, vectorsQuery, limit*limit)
+	if err != nil {
+		return nil, fmt.Errorf("embedding search error: %w", err)
+	}
+	embeddingsResults, err := h.SearchHash(cleanHashes(hashes), scores, limit)
+	if err != nil {
+		return nil, fmt.Errorf("database hashes search error: %w", err)
+	}
+	for _, result := range embeddingsResults {
+		results = append(results, result)
+	}
+	return results, nil
+}
+
 func (h *DBHandler) ProcessEmbeddings() error {
 	batchSize := 1000
 	offset := 0

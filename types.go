@@ -3,22 +3,21 @@
 package main
 
 type SearchResult struct {
-	Article int
-	Title   string
-	Entity  string
-	Text    string
-	Section string
-	Type    string
-	Power   float64
+	Article int     `json:"article"`
+	Title   string  `json:"title"`
+	Entity  string  `json:"entity"`
+	Text    string  `json:"text"`
+	Section string  `json:"section"`
+	Type    string  `json:"type"`
+	Power   float64 `json:"power"`
 }
 
 type ArticleResult struct {
-	Title   string
-	Entity  string
-	Section string
-	Text    string
-	Article int
-	BM25    float64
+	Title   string `json:"title"`
+	Entity  string `json:"entity"`
+	Section string `json:"section"`
+	Text    string `json:"text"`
+	Article int    `json:"article"`
 }
 
 type OutputArticle struct {

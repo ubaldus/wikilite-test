@@ -33,21 +33,13 @@ func Search(query string, limit int) ([]SearchResult, error) {
 	}
 
 	if options.ai && options.qdrant {
-		log.Println("AI searching", query)
-		vectorsQuery, err := aiEmbeddings(query)
+		log.Println("Vectors searching", query)
+		vectors, err := db.SearchVectors(query, limit)
 		if err != nil {
-			return nil, fmt.Errorf("embeddings generation error: %w", err)
+			return nil, err
 		}
-		hashes, scores, err := qdrantSearch(qd.PointsClient, options.qdrantCollection, vectorsQuery, limit*limit)
-		if err != nil {
-			return nil, fmt.Errorf("embedding search error: %w", err)
-		}
-		embeddingsResults, err := db.SearchHash(cleanHashes(hashes), scores, limit)
-		if err != nil {
-			return nil, fmt.Errorf("database hashes search error: %w", err)
-		}
-		for _, result := range embeddingsResults {
-			results = append(results, result)
+		for _, vector := range vectors {
+			results = append(results, vector)
 		}
 	}
 

@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.0.33"
+const Version = "0.0.34"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
