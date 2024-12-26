@@ -32,6 +32,11 @@ Wikilite utilizes text embeddings to power its semantic search capabilities. Thi
 
 The semantic search acts as a powerful complement to FTS5, allowing you to get more relevant results even when your query doesn't match directly.
 
+## Pre-built Databases
+
+Pre-built databases for several languages are also available on [Hugging Face](https://huggingface.co/datasets/eja/wikilite/tree/main). You can use these databases directly with Wikilite by downloading and decompressing them.
+
+
 ## Acknowledgments
 
 *   **Wikipedia**: For providing the valuable data that powers Wikilite.
