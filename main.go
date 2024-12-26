@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.0.32"
+const Version = "0.0.33"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -34,6 +34,7 @@ type Config struct {
 	cli              bool
 	limit            int
 	language         string
+	compress         bool
 }
 
 var (
@@ -65,6 +66,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
 	flag.IntVar(&options.limit, "limit", 5, "Maximum number of search results")
 	flag.StringVar(&options.language, "language", "en", "Language")
+	flag.BoolVar(&options.compress, "compress", false, "Compress database content")
 
 	flag.Usage = func() {
 		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")

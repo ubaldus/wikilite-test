@@ -35,7 +35,7 @@ func (h *DBHandler) initializeDB() error {
 		`CREATE TABLE IF NOT EXISTS hashes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			hash TEXT UNIQUE NOT NULL,
-			text TEXT NOT NULL,
+			text BLOB NOT NULL,
 			pow INTEGER DEFAULT 0
 		)`,
 
@@ -134,10 +134,14 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 		for _, entry := range textEntries {
 			hash := entry["hash"]
 			text := entry["text"]
+			blob := []byte(text)
+			if options.compress {
+				blob = TextDeflate(text)
+			}
 
 			result, err = tx.Exec(
 				"INSERT OR IGNORE INTO hashes (hash, text) VALUES (?, ?)",
-				hash, text,
+				hash, blob,
 			)
 			if err != nil {
 				return fmt.Errorf("error inserting hash: %v", err)
@@ -202,6 +206,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 	}
 	defer rows.Close()
 
+	var blob []byte
 	var results []ArticleResult
 	for rows.Next() {
 		var result ArticleResult
@@ -210,9 +215,14 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 			&result.Title,
 			&result.Entity,
 			&result.Section,
-			&result.Text,
+			&blob,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
+		}
+		if options.compress {
+			result.Text = TextInflate(blob)
+		} else {
+			result.Text = string(blob)
 		}
 		results = append(results, result)
 	}
@@ -260,7 +270,7 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			return nil, fmt.Errorf("error scanning result: %v", err)
 		}
 
-		var text string
+		var blob []byte
 		textQuery := `
 			SELECT h.text AS content
 			FROM articles a
@@ -270,11 +280,15 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			WHERE a.id = ?
 			LIMIT 1
 		`
-		err = h.db.QueryRow(textQuery, result.Article).Scan(&text)
+		err = h.db.QueryRow(textQuery, result.Article).Scan(&blob)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, fmt.Errorf("error fetching text for article %d: %v", result.Article, err)
 		}
-		result.Text = text
+		if options.compress {
+			result.Text = TextInflate(blob)
+		} else {
+			result.Text = string(blob)
+		}
 		result.Type = "T"
 		results = append(results, result)
 	}
@@ -321,6 +335,7 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 	}
 	defer rows.Close()
 
+	var blob []byte
 	var results []SearchResult
 	seenArticleIds := make(map[int]bool)
 	for rows.Next() {
@@ -335,7 +350,7 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 			&result.Title,
 			&result.Entity,
 			&result.Section,
-			&result.Text,
+			&blob,
 			&hash,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
@@ -349,6 +364,11 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 		result.Article = articleId
 		result.Type = "V"
 		result.Power = hashScoreMap[hash]
+		if options.compress {
+			result.Text = TextInflate(blob)
+		} else {
+			result.Text = string(blob)
+		}
 		results = append(results, result)
 	}
 
@@ -381,9 +401,15 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 	}
 	hashResults := make([]HashResult, 0)
 	for rows.Next() {
+		var blob []byte
 		var result HashResult
-		if err := rows.Scan(&result.RowID, &result.Text, &result.Relevance); err != nil {
+		if err := rows.Scan(&result.RowID, &blob, &result.Relevance); err != nil {
 			return nil, fmt.Errorf("error scanning hash result: %v", err)
+		}
+		if options.compress {
+			result.Text = TextInflate(blob)
+		} else {
+			result.Text = string(blob)
 		}
 		hashResults = append(hashResults, result)
 	}
@@ -475,12 +501,19 @@ func (h *DBHandler) ProcessEmbeddings() error {
 			Hash string
 			Text string
 		}
+		var blob []byte
 		var hashesData []HashData
 		for rows.Next() {
 			var data HashData
-			if err := rows.Scan(&data.Hash, &data.Text); err != nil {
+			if err := rows.Scan(&data.Hash, &blob); err != nil {
 				return fmt.Errorf("error scanning row: %w", err)
 			}
+			if options.compress {
+				data.Text = TextInflate(blob)
+			} else {
+				data.Text = string(blob)
+			}
+
 			hashesData = append(hashesData, data)
 		}
 		if err := rows.Err(); err != nil {
