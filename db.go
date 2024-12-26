@@ -17,6 +17,22 @@ type DBHandler struct {
 }
 
 func (h *DBHandler) initializeDB() error {
+
+	pragmas := []string{
+		"PRAGMA synchronous = OFF",        // Disable synchronous writes for faster performance
+		"PRAGMA journal_mode = WAL",       // Enable Write-Ahead Logging for better concurrency
+		"PRAGMA cache_size = -10000",      // Increase cache size to 10,000 pages (adjust as needed)
+		"PRAGMA mmap_size = 268435456",    // Enable memory-mapped I/O with 256 MB
+		"PRAGMA temp_store = MEMORY",      // Store temporary tables and indices in memory
+		"PRAGMA locking_mode = EXCLUSIVE", // Use exclusive locking mode (since no concurrent writes)
+	}
+
+	for _, pragma := range pragmas {
+		if _, err := h.db.Exec(pragma); err != nil {
+			return fmt.Errorf("error executing PRAGMA %s: %v", pragma, err)
+		}
+	}
+
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS articles (
 			id INTEGER PRIMARY KEY,
