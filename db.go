@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -192,7 +193,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 		WHERE 
     	a.id = ?
 		ORDER BY 
-    	c.id;
+    	s.id ASC, c.id ASC;
     `
 
 	rows, err := h.db.Query(sqlQuery, articleID)
@@ -462,6 +463,7 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		return fmt.Errorf("error getting total count of hashes: %w", err)
 	}
 
+	startTime := time.Now()
 	for {
 		rows, err := h.db.Query(`SELECT hash, text FROM hashes LIMIT ? OFFSET ?`, batchSize, offset)
 		if err != nil {
@@ -525,7 +527,11 @@ func (h *DBHandler) ProcessEmbeddings() error {
 
 		processedCount := offset + len(hashesData)
 		progress := float64(processedCount) / float64(totalCount) * 100
-		log.Printf("Embedding progress: %.2f%%", progress)
+		elapsed := time.Since(startTime)
+		estimatedTotalTime := time.Duration(float64(elapsed) / (progress / 100.0))
+		remainingTime := estimatedTotalTime - elapsed
+
+		log.Printf("Embedding progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
 
 		offset += batchSize
 	}
