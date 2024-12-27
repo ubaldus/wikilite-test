@@ -20,7 +20,7 @@ Performs a search across titles, content, and vectors (if enabled).
 
 #### GET Request
 ```
-GET /api/search?query=python&limit=5
+GET /api/search?query=linux&limit=5
 ```
 
 #### POST Request
@@ -29,7 +29,7 @@ POST /api/search
 Content-Type: application/json
 
 {
-  "query": "python",
+  "query": "linux",
   "limit": 5
 }
 ```
@@ -41,10 +41,10 @@ Content-Type: application/json
   "results": [
     {
       "article": 123,
-      "title": "Python (programming language)",
-      "entity": "Python",
+      "title": "Linux",
+      "entity": "Q388",
       "section": "History",
-      "text": "Python was conceived in the late 1980s...",
+      "text": "Linux was created in 1991...",
       "type": "T",
       "power": 1.234
     }
@@ -64,7 +64,7 @@ Searches only article titles using full-text search.
 
 #### GET Request
 ```
-GET /api/search/title?query=python&limit=5
+GET /api/search/title?query=linux&limit=5
 ```
 
 #### POST Request
@@ -73,7 +73,7 @@ POST /api/search/title
 Content-Type: application/json
 
 {
-  "query": "python",
+  "query": "linux",
   "limit": 5
 }
 ```
@@ -90,7 +90,7 @@ Searches article content using full-text search.
 
 #### GET Request
 ```
-GET /api/search/content?query=python&limit=5
+GET /api/search/content?query=linux&limit=5
 ```
 
 #### POST Request
@@ -99,7 +99,7 @@ POST /api/search/content
 Content-Type: application/json
 
 {
-  "query": "python",
+  "query": "linux",
   "limit": 5
 }
 ```
@@ -116,7 +116,7 @@ Searches using vector embeddings. Requires AI and Qdrant to be enabled.
 
 #### GET Request
 ```
-GET /api/search/vectors?query=python&limit=5
+GET /api/search/vectors?query=linux&limit=5
 ```
 
 #### POST Request
@@ -125,7 +125,7 @@ POST /api/search/vectors
 Content-Type: application/json
 
 {
-  "query": "python",
+  "query": "linux",
   "limit": 5
 }
 ```
@@ -158,15 +158,27 @@ Content-Type: application/json
 ```json
 {
   "status": "success",
-  "article": [
-    {
-      "article": 123,
-      "title": "Python (programming language)",
-      "entity": "Python",
-      "section": "History",
-      "text": "Python was conceived in the late 1980s..."
-    }
-  ]
+  "article": {
+    "article": 123,
+    "title": "Linux",
+    "entity": "Q388",
+    "sections": [
+      {
+        "title": "History",
+        "texts": [
+          "Linux was created in 1991...",
+          "Linus Torvalds began working on Linux while studying..."
+        ]
+      },
+      {
+        "title": "Design Philosophy",
+        "texts": [
+          "Linux follows Unix philosophy...",
+          "The kernel is designed to be modular..."
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -207,14 +219,14 @@ The API uses standard HTTP status codes:
 
 1. Combined Search:
 ```bash
-curl 'http://localhost:35248/api/search?query=python&limit=5'
+curl 'http://localhost:35248/api/search?query=linux&limit=5'
 ```
 
 2. Title Search:
 ```bash
 curl -X POST http://localhost:35248/api/search/title \
   -H 'Content-Type: application/json' \
-  -d '{"query": "python"}'
+  -d '{"query": "linux"}'
 ```
 
 3. Get Article:
@@ -234,7 +246,6 @@ Example:
 ```bash
 ./wikilite --ai --qdrant --web
 ```
-
 
 ## Notes
 - All search endpoints support both GET and POST methods
