@@ -10,30 +10,31 @@ import (
 	"os"
 )
 
-const Version = "0.0.36"
+const Version = "0.0.37"
 
 type Config struct {
-	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
-	dbPath           string
-	web              bool
-	webHost          string
-	webPort          int
-	ai               bool
-	aiApiKey         string
-	aiEmbeddingModel string
-	aiEmbeddingSize  int
-	aiLlmModel       string
-	aiUrl            string
-	qdrant           bool
-	qdrantHost       string
-	qdrantPort       int
-	qdrantSync       bool
-	qdrantCollection string
-	log              bool
-	logFile          string
-	cli              bool
-	limit            int
-	language         string
+	importPath         string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
+	dbPath             string
+	web                bool
+	webHost            string
+	webPort            int
+	ai                 bool
+	aiApiKey           string
+	aiEmbeddingModel   string
+	aiEmbeddingSize    int
+	aiEmbeddingWorkers int
+	aiLlmModel         string
+	aiUrl              string
+	qdrant             bool
+	qdrantHost         string
+	qdrantPort         int
+	qdrantSync         bool
+	qdrantCollection   string
+	log                bool
+	logFile            string
+	cli                bool
+	limit              int
+	language           string
 }
 
 var (
@@ -46,6 +47,7 @@ func parseConfig() (*Config, error) {
 	options = &Config{}
 	flag.BoolVar(&options.ai, "ai", false, "Enable AI")
 	flag.IntVar(&options.aiEmbeddingSize, "ai-embedding-size", 384, "AI embedding size")
+	flag.IntVar(&options.aiEmbeddingWorkers, "ai-embedding-workers", 1, "AI embedding workers")
 	flag.StringVar(&options.aiEmbeddingModel, "ai-embedding-model", "all-minilm", "AI embedding model")
 	flag.StringVar(&options.aiLlmModel, "ai-llm-model", "gemma2", "AI LLM model")
 	flag.StringVar(&options.aiUrl, "ai-url", "http://localhost:11434/v1/", "AI base url")
