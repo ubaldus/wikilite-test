@@ -85,7 +85,7 @@ func SearchCli() error {
 
 		articles = make(map[int]int)
 		for i, result := range results {
-			articles[i+1] = result.Article
+			articles[i+1] = result.ArticleID
 			fmt.Printf("% 3d [%s] %s\n", i+1, result.Type, result.Title)
 		}
 	}
@@ -96,14 +96,14 @@ func searchOptimize(results []SearchResult) []SearchResult {
 	accumulatedResults := []SearchResult{}
 
 	for _, result := range results {
-		if !seen[result.Article] {
+		if !seen[result.ArticleID] {
 			// First occurrence, add it to accumulated results and mark as seen
-			seen[result.Article] = true
+			seen[result.ArticleID] = true
 			accumulatedResults = append(accumulatedResults, result)
 		} else {
 			// Duplicate article, find the first entry and accumulate the power value
 			for i := range accumulatedResults {
-				if accumulatedResults[i].Article == result.Article {
+				if accumulatedResults[i].ArticleID == result.ArticleID {
 					accumulatedResults[i].Power += result.Power
 					break
 				}

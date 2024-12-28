@@ -57,8 +57,8 @@ func (h *DBHandler) initializeDB() error {
 
 		`CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
 			title,
-            content='articles',
-            content_rowid='id'
+			content='articles',
+			content_rowid='id'
 		)`,
 
 		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
@@ -197,6 +197,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 			a.title AS article_title,
 			a.entity AS article_entity,
 			s.sub AS section_title,
+			s.id AS section_id,
 			h.text AS content
 		FROM 
 			articles a
@@ -225,6 +226,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 			articleID    int
 			title        string
 			entity       string
+			sectionID    int
 			sectionTitle string
 			content      string
 		)
@@ -234,6 +236,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 			&title,
 			&entity,
 			&sectionTitle,
+			&sectionID,
 			&content,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning result: %v", err)
@@ -244,7 +247,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 			article = &ArticleResult{
 				Title:    title,
 				Entity:   entity,
-				Article:  articleID,
+				ID:       articleID,
 				Sections: []ArticleResultSection{},
 			}
 			articleMap[articleID] = article
@@ -261,6 +264,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 		if section == nil {
 			article.Sections = append(article.Sections, ArticleResultSection{
 				Title: sectionTitle,
+				ID:    sectionID,
 				Texts: []string{},
 			})
 			section = &article.Sections[len(article.Sections)-1]
@@ -307,10 +311,10 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 	for rows.Next() {
 		var result SearchResult
 		if err := rows.Scan(
-			&result.Article,
+			&result.ArticleID,
 			&result.Title,
 			&result.Entity,
-			&result.Section,
+			&result.SectionTitle,
 			&result.Text,
 			&result.Power,
 		); err != nil {
@@ -318,17 +322,18 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 		}
 
 		textQuery := `
-			SELECT h.text AS content
+			SELECT h.text AS content, s.id AS section_id
 			FROM articles a
 			JOIN sections s ON a.id = s.article_id
 			JOIN content c ON s.id = c.section_id
 			JOIN hashes h ON c.hash_id = h.id
 			WHERE a.id = ?
+			ORDER BY h.pow ASC, h.id ASC
 			LIMIT 1
 		`
-		err = h.db.QueryRow(textQuery, result.Article).Scan(&result.Text)
+		err = h.db.QueryRow(textQuery, result.ArticleID).Scan(&result.Text, &result.SectionID)
 		if err != nil && err != sql.ErrNoRows {
-			return nil, fmt.Errorf("error fetching text for article %d: %v", result.Article, err)
+			return nil, fmt.Errorf("error fetching text for article %d: %v", result.ArticleID, err)
 		}
 		result.Type = "T"
 		results = append(results, result)
@@ -360,7 +365,8 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
       a.id as article_id,
       a.title,
       a.entity,
-      s.sub as section,
+      s.sub as section_title,
+			s.id as section_id,
       h.text,
       h.hash
     FROM hashes h
@@ -389,7 +395,8 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 			&articleId,
 			&result.Title,
 			&result.Entity,
-			&result.Section,
+			&result.SectionTitle,
+			&result.SectionID,
 			&result.Text,
 			&hash,
 		); err != nil {
@@ -401,7 +408,7 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
 		}
 
 		seenArticleIds[articleId] = true
-		result.Article = articleId
+		result.ArticleID = articleId
 		result.Type = "V"
 		result.Power = hashScoreMap[hash]
 		results = append(results, result)
@@ -460,7 +467,8 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 			a.id as article_id,
 			a.title,
 			a.entity,
-			s.sub as section,
+			s.sub as section_title,
+			s.id as section_id,
 			h.id as hash_id
 		FROM hashes h
 		JOIN content c ON c.hash_id = h.id
@@ -480,10 +488,11 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 		var result SearchResult
 		var hash_id int
 		if err := rows.Scan(
-			&result.Article,
+			&result.ArticleID,
 			&result.Title,
 			&result.Entity,
-			&result.Section,
+			&result.SectionTitle,
+			&result.SectionID,
 			&hash_id,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning article info: %v", err)
