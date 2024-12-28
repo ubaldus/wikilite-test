@@ -40,10 +40,11 @@ Content-Type: application/json
   "status": "success",
   "results": [
     {
-      "article": 123,
+      "article_id": 123,
       "title": "Linux",
       "entity": "Q388",
-      "section": "History",
+      "section_id": 321,
+      "section_title": "History",
       "text": "Linux was created in 1991...",
       "type": "T",
       "power": 1.234
@@ -159,11 +160,12 @@ Content-Type: application/json
 {
   "status": "success",
   "article": {
-    "article": 123,
+    "id": 123,
     "title": "Linux",
     "entity": "Q388",
     "sections": [
       {
+        "id": 1234,
         "title": "History",
         "texts": [
           "Linux was created in 1991...",
@@ -171,6 +173,7 @@ Content-Type: application/json
         ]
       },
       {
+        "id": 12345,
         "title": "Design Philosophy",
         "texts": [
           "Linux follows Unix philosophy...",
