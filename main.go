@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.0.38"
+const Version = "0.0.39"
 
 type Config struct {
 	importPath         string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -112,9 +112,16 @@ func main() {
 	defer db.Close()
 
 	if options.importPath != "" {
+		if err := db.PragmaImportMode(); err != nil {
+			log.Fatalf("Error setting database in import mode: %v\n", err)
+		}
 		if err = WikiImport(options.importPath); err != nil {
 			log.Fatalf("Error processing import: %v\n", err)
 		}
+		if err := db.PragmaReadMode(); err != nil {
+			log.Fatalf("Error setting database in read mode: %v\n", err)
+		}
+
 	}
 
 	if options.qdrant || options.qdrantSync {

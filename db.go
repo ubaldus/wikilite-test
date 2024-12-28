@@ -17,20 +17,8 @@ type DBHandler struct {
 }
 
 func (h *DBHandler) initializeDB() error {
-
-	pragmas := []string{
-		"PRAGMA synchronous = OFF",        // Disable synchronous writes for faster performance
-		"PRAGMA journal_mode = WAL",       // Enable Write-Ahead Logging for better concurrency
-		"PRAGMA cache_size = -10000",      // Increase cache size to 10,000 pages (adjust as needed)
-		"PRAGMA mmap_size = 268435456",    // Enable memory-mapped I/O with 256 MB
-		"PRAGMA temp_store = MEMORY",      // Store temporary tables and indices in memory
-		"PRAGMA locking_mode = EXCLUSIVE", // Use exclusive locking mode (since no concurrent writes)
-	}
-
-	for _, pragma := range pragmas {
-		if _, err := h.db.Exec(pragma); err != nil {
-			return fmt.Errorf("error executing PRAGMA %s: %v", pragma, err)
-		}
+	if err := h.PragmaInitMode(); err != nil {
+		return err
 	}
 
 	queries := []string{
@@ -81,6 +69,10 @@ func (h *DBHandler) initializeDB() error {
 		if _, err := h.db.Exec(query); err != nil {
 			return fmt.Errorf("error executing query %s: %v", query, err)
 		}
+	}
+
+	if err := h.PragmaReadMode(); err != nil {
+		return err
 	}
 
 	return nil
@@ -666,4 +658,41 @@ func (h *DBHandler) ProcessEmbeddings() error {
 	}
 
 	return nil
+}
+
+func (h *DBHandler) Pragma(pragmas []string) error {
+	for _, pragma := range pragmas {
+		if _, err := h.db.Exec(pragma); err != nil {
+			return fmt.Errorf("error executing PRAGMA %s: %v", pragma, err)
+		}
+	}
+	return nil
+}
+
+func (h *DBHandler) PragmaInitMode() error {
+	pragmas := []string{
+		"PRAGMA synchronous = OFF",
+		"PRAGMA journal_mode = OFF",
+		"PRAGMA foreign_keys = OFF",
+		"PRAGMA cache_size = -10000",
+		"PRAGMA mmap_size = 268435456",
+		"PRAGMA temp_store = MEMORY",
+	}
+	return h.Pragma(pragmas)
+}
+
+func (h *DBHandler) PragmaReadMode() error {
+	pragmas := []string{
+		"PRAGMA locking_mode = NORMAL",
+		"PRAGMA query_only = ON",
+	}
+	return h.Pragma(pragmas)
+}
+
+func (h *DBHandler) PragmaImportMode() error {
+	pragmas := []string{
+		"PRAGMA locking_mode = EXCLUSIVE",
+		"PRAGMA query_only = OFF",
+	}
+	return h.Pragma(pragmas)
 }
