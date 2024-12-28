@@ -54,6 +54,9 @@ func SearchCli() error {
 		fmt.Print("> ")
 		query, _ := reader.ReadString('\n')
 		query = strings.TrimSpace(query)
+		if query == "" {
+			return nil
+		}
 
 		queryIdx, err := strconv.Atoi(query)
 		if err == nil {
