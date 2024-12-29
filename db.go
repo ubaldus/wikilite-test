@@ -313,16 +313,27 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 		}
 
 		textQuery := `
-			SELECT h.text AS content, s.id AS section_id
-			FROM articles a
-			JOIN sections s ON a.id = s.article_id
-			JOIN content c ON s.id = c.section_id
-			JOIN hashes h ON c.hash_id = h.id
-			WHERE a.id = ?
-			ORDER BY h.pow ASC, h.id ASC
-			LIMIT 1
+			SELECT text, (
+				SELECT id 
+    		FROM sections 
+    		WHERE article_id = ? 
+    		LIMIT 1
+			) AS section_title
+			FROM hashes
+			WHERE id = (
+    		SELECT hash_id 
+    		FROM content 
+    		WHERE section_id = (
+        	SELECT id 
+        	FROM sections 
+       		WHERE article_id = ? 
+        	LIMIT 1
+    		) 
+    		LIMIT 1
+			)
+			LIMIT 1;
 		`
-		err = h.db.QueryRow(textQuery, result.ArticleID).Scan(&result.Text, &result.SectionID)
+		err = h.db.QueryRow(textQuery, result.ArticleID, result.ArticleID).Scan(&result.Text, &result.SectionID)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, fmt.Errorf("error fetching text for article %d: %v", result.ArticleID, err)
 		}
