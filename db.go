@@ -534,11 +534,6 @@ func (h *DBHandler) ProcessEmbeddings() error {
 	offset := 0
 	totalCount := 0
 
-	type HashData struct {
-		Hash string
-		Text string
-	}
-
 	err := h.db.QueryRow("SELECT COUNT(*) FROM hashes").Scan(&totalCount)
 	if err != nil {
 		return fmt.Errorf("error getting total count of hashes: %w", err)
@@ -550,58 +545,6 @@ func (h *DBHandler) ProcessEmbeddings() error {
 	}
 
 	startTime := time.Now()
-
-	numWorkers := options.aiEmbeddingWorkers
-	hashChan := make(chan HashData, numWorkers)
-	embeddingChan := make(chan map[string][]float32, numWorkers)
-	doneChan := make(chan bool)
-
-	// Start workers
-	for i := 0; i < numWorkers; i++ {
-		go func() {
-			for hashData := range hashChan {
-				hash := hashData.Hash
-				text := hashData.Text
-
-				exists, err := qdrantHashExists(qd.PointsClient, options.qdrantCollection, hash)
-				if err != nil {
-					log.Printf("Error checking qdrant existence for hash %s: %v", hash, err)
-					continue
-				}
-				if exists {
-					log.Printf("Hash %s already exists in qdrant", hash)
-					continue
-				}
-
-				embedding, err := aiEmbeddings(text)
-				if err != nil {
-					log.Printf("Embedding generation error for hash %s: %v", hash, err)
-					continue
-				}
-
-				embeddingChan <- map[string][]float32{hash: embedding}
-			}
-			doneChan <- true
-		}()
-	}
-
-	// Collect embeddings
-	go func() {
-		hashEmbeddings := make(map[string][]float32)
-		for embedding := range embeddingChan {
-			for hash, emb := range embedding {
-				hashEmbeddings[hash] = emb
-			}
-		}
-
-		if len(hashEmbeddings) > 0 {
-			err = qdrantUpsertPoints(qd.PointsClient, options.qdrantCollection, hashEmbeddings)
-			if err != nil {
-				log.Printf("Error upserting batch to qdrant: %v", err)
-			}
-		}
-	}()
-
 	for {
 		rows, err := h.db.Query(`SELECT hash, text FROM hashes LIMIT ? OFFSET ?`, batchSize, offset)
 		if err != nil {
@@ -609,6 +552,10 @@ func (h *DBHandler) ProcessEmbeddings() error {
 		}
 		defer rows.Close()
 
+		type HashData struct {
+			Hash string
+			Text string
+		}
 		var hashesData []HashData
 		for rows.Next() {
 			var data HashData
@@ -626,9 +573,37 @@ func (h *DBHandler) ProcessEmbeddings() error {
 			break
 		}
 
-		// Send hashes to workers
+		hashEmbeddings := make(map[string][]float32)
+		var hashesToUpdate []string
+
 		for _, hashData := range hashesData {
-			hashChan <- hashData
+			hash := hashData.Hash
+			text := hashData.Text
+
+			exists, err := qdrantHashExists(qd.PointsClient, options.qdrantCollection, hash)
+			if err != nil {
+				log.Printf("Error checking qdrant existence for hash %s: %v", hash, err)
+				continue
+			}
+			if exists {
+				log.Printf("Hash %s already exists in qdrant", hash)
+				continue
+			}
+
+			embedding, err := aiEmbeddings(text)
+			if err != nil {
+				log.Printf("Embedding generation error for hash %s: %v", hash, err)
+				continue
+			}
+			hashEmbeddings[hash] = embedding
+			hashesToUpdate = append(hashesToUpdate, hash)
+		}
+
+		if len(hashEmbeddings) > 0 {
+			err = qdrantUpsertPoints(qd.PointsClient, options.qdrantCollection, hashEmbeddings)
+			if err != nil {
+				log.Printf("Error upserting batch to qdrant: %v", err)
+			}
 		}
 
 		processedCount := offset + len(hashesData)
@@ -641,15 +616,6 @@ func (h *DBHandler) ProcessEmbeddings() error {
 
 		offset += batchSize
 	}
-
-	close(hashChan)
-
-	// Wait for all workers to finish
-	for i := 0; i < numWorkers; i++ {
-		<-doneChan
-	}
-
-	close(embeddingChan)
 
 	err = qdrantIndexOn(qd.CollectionsClient, options.qdrantCollection)
 	if err != nil {
