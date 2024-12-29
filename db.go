@@ -31,15 +31,23 @@ func (h *DBHandler) initializeDB() error {
 		`CREATE TABLE IF NOT EXISTS sections (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			article_id INTEGER,
-			sub TEXT,
+			title TEXT,
 			pow INTEGER DEFAULT 0,
 			FOREIGN KEY(article_id) REFERENCES articles(id)
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS content (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			section_id INTEGER,
+			hash_id INTEGER NOT NULL,
+			FOREIGN KEY(section_id) REFERENCES sections(id),
+			FOREIGN KEY(hash_id) REFERENCES hashes(id)
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS hashes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			hash TEXT UNIQUE NOT NULL,
-			text BLOB NOT NULL,
+			text TEXT NOT NULL,
 			pow INTEGER DEFAULT 0
 		)`,
 
@@ -50,18 +58,9 @@ func (h *DBHandler) initializeDB() error {
 		)`,
 
 		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
-			hash,
 			text,
 			content='hashes',
 			content_rowid='id'
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS content (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			section_id INTEGER,
-			hash_id INTEGER NOT NULL,
-			FOREIGN KEY(section_id) REFERENCES sections(id),
-			FOREIGN KEY(hash_id) REFERENCES hashes(id)
 		)`,
 	}
 
@@ -118,12 +117,12 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 	}
 
 	for _, item := range article.Items {
-		sub, _ := item["sub"].(string)
+		title, _ := item["title"].(string)
 		pow, _ := item["pow"].(int)
 
 		result, err := tx.Exec(
-			"INSERT INTO sections (article_id, sub, pow) VALUES (?, ?, ?)",
-			article.ID, sub, pow,
+			"INSERT INTO sections (article_id, title, pow) VALUES (?, ?, ?)",
+			article.ID, title, pow,
 		)
 		if err != nil {
 			return fmt.Errorf("error inserting section: %v", err)
@@ -156,8 +155,8 @@ func (h *DBHandler) SaveArticle(article OutputArticle) error {
 				return fmt.Errorf("error getting hash ID: %v", err)
 			}
 			_, err = tx.Exec(
-				"INSERT INTO hash_search(rowid, hash, text) VALUES (?, ?, ?)",
-				hashID, hash, text,
+				"INSERT INTO hash_search(rowid, text) VALUES (?, ?)",
+				hashID, text,
 			)
 
 			if err != nil {
@@ -188,7 +187,7 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 			a.id AS article_id,
 			a.title AS article_title,
 			a.entity AS article_entity,
-			s.sub AS section_title,
+			s.title AS section_title,
 			s.id AS section_id,
 			h.text AS content
 		FROM 
@@ -357,7 +356,7 @@ func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]
       a.id as article_id,
       a.title,
       a.entity,
-      s.sub as section_title,
+      s.title as section_title,
 			s.id as section_id,
       h.text,
       h.hash
@@ -459,7 +458,7 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 			a.id as article_id,
 			a.title,
 			a.entity,
-			s.sub as section_title,
+			s.title as section_title,
 			s.id as section_id,
 			h.id as hash_id
 		FROM hashes h

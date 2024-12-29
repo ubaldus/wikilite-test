@@ -309,7 +309,7 @@ func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTit
 		if len(texts) > 0 {
 			var textEntries []map[string]string
 			for _, text := range texts {
-				if text != item["sub"] {
+				if text != item["title"] {
 					textEntries = append(textEntries, map[string]string{
 						"hash": calculateHash([]string{text}),
 						"text": text,
@@ -318,9 +318,9 @@ func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTit
 			}
 
 			items = append(items, map[string]interface{}{
-				"sub":  item["sub"],
-				"pow":  item["pow"],
-				"text": textEntries,
+				"title": item["title"],
+				"pow":   item["pow"],
+				"text":  textEntries,
 			})
 		}
 	}
@@ -359,7 +359,7 @@ func wikiProcessTextElementWithText(textContent string, lastHeading *string, pow
 
 	found := false
 	for i, item := range *groupedItems {
-		if item["sub"] == subKey {
+		if item["title"] == subKey {
 			(*groupedItems)[i]["text"] = append((*groupedItems)[i]["text"].([]string), trimmedText)
 			found = true
 			break
@@ -368,9 +368,9 @@ func wikiProcessTextElementWithText(textContent string, lastHeading *string, pow
 
 	if !found {
 		*groupedItems = append(*groupedItems, map[string]interface{}{
-			"sub":  *lastHeading,
-			"pow":  *power,
-			"text": []string{trimmedText},
+			"title": *lastHeading,
+			"pow":   *power,
+			"text":  []string{trimmedText},
 		})
 	}
 }
