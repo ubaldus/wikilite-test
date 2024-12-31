@@ -113,7 +113,11 @@ function displayResults(results, type) {
             divContent.className = 'ms-2 me-auto';
 
             const titleLink = document.createElement('a');
-            titleLink.href = `article?id=${result.article_id}`;
+						if ('speechSynthesis' in window) {
+							titleLink.href= `/static/tts.html?id=${result.article_id}&locale=${language}`;
+						} else {
+							titleLink.href = `article?id=${result.article_id}`;
+						}
             titleLink.className = 'text-decoration-none';
             titleLink.textContent = result.title;
 
@@ -133,43 +137,9 @@ function displayResults(results, type) {
     }
 }
 
-function speakPageContent() {
-    const elementsToSpeak = document.querySelectorAll('h1, h2, h3, h4, h5, h6, p');
-    const allText = Array.from(elementsToSpeak)
-        .map(el => el.textContent)
-        .join(". ");
-
-    utterance = new SpeechSynthesisUtterance(allText);
-    utterance.lang = language;
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-
-    speakIcon.classList.remove('bi-volume-up-fill');
-    speakIcon.classList.add('bi-volume-mute-fill');
-    isSpeaking = true;
-
-    speechSynthesis.speak(utterance);
-
-    utterance.onend = () => {
-        speakIcon.classList.remove('bi-volume-mute-fill');
-        speakIcon.classList.add('bi-volume-up-fill');
-        isSpeaking = false;
-    };
-}
-
-
-let utterance;
-let isSpeaking = false;
-
 const speechInput = document.getElementById('speechInput');
 const startSpeechButton = document.getElementById('startSpeech');
-const speakButton = document.querySelector('.speak-button');
-const speakIcon = document.querySelector('.speak-button i');
 const searchForm = document.getElementById('searchForm');
-
-if (speakButton && (!'speechSynthesis' in window)) {
-    speakButton.style.display = 'none';
-}
 
 if (startSpeechButton && !/Chrome/.test(navigator.userAgent)) {
     startSpeechButton.style.display = 'none';
@@ -211,19 +181,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     }
 } else {
     document.getElementById("startSpeech").style.display = "none";
-}
-
-if (speakButton) {
-    speakButton.addEventListener('click', () => {
-        if (isSpeaking) {
-            speechSynthesis.cancel();
-            speakIcon.classList.remove('bi-volume-mute-fill');
-            speakIcon.classList.add('bi-volume-up-fill');
-            isSpeaking = false;
-        } else {
-            speakPageContent();
-        }
-    });
 }
 
 if (searchForm) {

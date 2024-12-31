@@ -47,7 +47,15 @@ func (s *WebServer) executeTemplate(w http.ResponseWriter, templateName string, 
 		return
 	}
 }
+
 func (s *WebServer) handleHTMLSearch(w http.ResponseWriter, r *http.Request) {
+	type TemplateData struct {
+		Query    string
+		Results  []SearchResult
+		HasQuery bool
+		Language string
+	}
+
 	if r.Method == "POST" {
 		query := r.FormValue("query")
 		results, err := Search(query, options.limit)
@@ -57,21 +65,21 @@ func (s *WebServer) handleHTMLSearch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data := struct {
-			Query    string
-			Results  []SearchResult
-			HasQuery bool
-			Language string
-		}{
+		data := TemplateData{
 			Query:    query,
 			Results:  results,
 			HasQuery: query != "",
 			Language: options.language,
 		}
+		log.Println(data)
 		s.executeTemplate(w, "search.html", data)
 		return
 	}
-	s.executeTemplate(w, "search.html", nil)
+
+	data := TemplateData{
+		Language: options.language,
+	}
+	s.executeTemplate(w, "search.html", data)
 }
 
 func (s *WebServer) handleHTMLArticle(w http.ResponseWriter, r *http.Request) {
