@@ -146,6 +146,8 @@ archives:
       - wikilite-linux-i386
       - wikilite-windows-amd64
       - wikilite-windows-arm64
+    files:
+      - none*
 
 checksum:
   name_template: 'checksums.txt'

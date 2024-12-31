@@ -2,7 +2,7 @@
 
   {{if .Results}}
     {{$firstResult := index .Results 0}}
-    <h1 class="mb-5 text-center">{{$firstResult.Title}}  <button class="btn speak-button"><i class="bi bi-volume-up-fill"></i></button></h1>
+    <h1 class="mb-5 text-center">{{$firstResult.Title}}</h1>
    
     {{range $firstResult.Sections}}
       <h2 class="mt-4 mb-3">{{.Title}}</h2>
