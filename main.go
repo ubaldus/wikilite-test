@@ -34,6 +34,7 @@ type Config struct {
 	cli              bool
 	limit            int
 	language         string
+	optimize         bool
 }
 
 var (
@@ -65,6 +66,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
 	flag.IntVar(&options.limit, "limit", 5, "Maximum number of search results")
 	flag.StringVar(&options.language, "language", "en", "Language")
+	flag.BoolVar(&options.optimize, "optimize", false, "Optimize database")
 
 	flag.Usage = func() {
 		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")
@@ -109,12 +111,14 @@ func main() {
 	}
 	defer db.Close()
 
-	if options.importPath != "" {
+	if options.optimize || options.importPath != "" {
 		if err := db.PragmaImportMode(); err != nil {
 			log.Fatalf("Error setting database in import mode: %v\n", err)
 		}
-		if err = WikiImport(options.importPath); err != nil {
-			log.Fatalf("Error processing import: %v\n", err)
+		if options.importPath != "" {
+			if err = WikiImport(options.importPath); err != nil {
+				log.Fatalf("Error processing import: %v\n", err)
+			}
 		}
 		if err := db.Optimize(); err != nil {
 			log.Fatalf("Error during database optimization: %v\n", err)
