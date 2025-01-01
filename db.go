@@ -671,85 +671,65 @@ func (h *DBHandler) Optimize() error {
 	}
 	defer tx.Rollback()
 
-	rows, err := tx.Query("SELECT article_id, title, MAX(id) as max_id FROM sections GROUP BY article_id, title HAVING COUNT(*) > 1")
+	log.Println("Deleting duplicate sections")
+	_, err = tx.Exec(`
+        DELETE FROM sections
+        WHERE id NOT IN (
+            SELECT MAX(id)
+            FROM sections
+            GROUP BY article_id, title
+        )
+    `)
 	if err != nil {
-		return fmt.Errorf("error querying duplicate sections: %v", err)
-	}
-	defer rows.Close()
-
-	var sectionsToDelete []int
-	for rows.Next() {
-		var articleID int
-		var title string
-		var maxID int
-		if err := rows.Scan(&articleID, &title, &maxID); err != nil {
-			return fmt.Errorf("error scanning duplicate section: %v", err)
-		}
-
-		sectionRows, err := tx.Query("SELECT id FROM sections WHERE article_id = ? AND title = ? AND id != ?", articleID, title, maxID)
-		if err != nil {
-			return fmt.Errorf("error querying sections to delete: %v", err)
-		}
-		defer sectionRows.Close()
-
-		for sectionRows.Next() {
-			var sectionID int
-			if err := sectionRows.Scan(&sectionID); err != nil {
-				return fmt.Errorf("error scanning section ID to delete: %v", err)
-			}
-			sectionsToDelete = append(sectionsToDelete, sectionID)
-		}
+		return fmt.Errorf("error deleting duplicate sections: %v", err)
 	}
 
-	for _, sectionID := range sectionsToDelete {
-		contentRows, err := tx.Query("SELECT id, hash_id FROM content WHERE section_id = ?", sectionID)
-		if err != nil {
-			return fmt.Errorf("error querying content to delete: %v", err)
-		}
-		defer contentRows.Close()
-
-		for contentRows.Next() {
-			var contentID, hashID int
-			if err := contentRows.Scan(&contentID, &hashID); err != nil {
-				return fmt.Errorf("error scanning content ID to delete: %v", err)
-			}
-
-			_, err = tx.Exec("UPDATE hashes SET pow = pow - 1 WHERE id = ?", hashID)
-			if err != nil {
-				return fmt.Errorf("error decreasing hash pow: %v", err)
-			}
-
-			_, err = tx.Exec("DELETE FROM content WHERE id = ?", contentID)
-			if err != nil {
-				return fmt.Errorf("error deleting content: %v", err)
-			}
-		}
-
-		_, err = tx.Exec("DELETE FROM sections WHERE id = ?", sectionID)
-		if err != nil {
-			return fmt.Errorf("error deleting section: %v", err)
-		}
+	log.Println("Updating hashes for orphaned content")
+	_, err = tx.Exec(`
+        UPDATE hashes
+        SET pow = pow - 1
+        WHERE id IN (
+            SELECT hash_id
+            FROM content
+            WHERE section_id NOT IN (SELECT id FROM sections)
+        )
+    `)
+	if err != nil {
+		return fmt.Errorf("error updating hashes for orphaned content: %v", err)
 	}
 
+	log.Println("Deleting orphaned content")
+	_, err = tx.Exec(`
+        DELETE FROM content
+        WHERE section_id NOT IN (SELECT id FROM sections)
+    `)
+	if err != nil {
+		return fmt.Errorf("error deleting orphaned content: %v", err)
+	}
+
+	log.Println("Deleting unused hashes")
 	_, err = tx.Exec("DELETE FROM hashes WHERE pow <= 0")
 	if err != nil {
 		return fmt.Errorf("error deleting hashes with pow <= 0: %v", err)
 	}
 
+	log.Println("Populating hash_search table")
 	_, err = tx.Exec("INSERT INTO hash_search(rowid, text) SELECT id, text FROM hashes")
 	if err != nil {
 		return fmt.Errorf("error populating hash_search: %v", err)
 	}
 
+	log.Println("Populating article_search table")
 	_, err = tx.Exec("INSERT INTO article_search(rowid, title) SELECT id, title FROM articles")
 	if err != nil {
-		return fmt.Errorf("error populating hash_search: %v", err)
+		return fmt.Errorf("error populating article_search: %v", err)
 	}
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
 
+	log.Println("Running VACUUM")
 	_, err = h.db.Exec("VACUUM")
 	if err != nil {
 		return fmt.Errorf("error executing VACUUM: %v", err)
