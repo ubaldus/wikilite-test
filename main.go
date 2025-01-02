@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.0.45"
+const Version = "0.0.46"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -18,6 +18,8 @@ type Config struct {
 	web              bool
 	webHost          string
 	webPort          int
+	webTlsPrivate    string
+	webTlsPublic     string
 	ai               bool
 	aiApiKey         string
 	aiEmbeddingModel string
@@ -56,6 +58,8 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.web, "web", false, "Enable web interface")
 	flag.StringVar(&options.webHost, "web-host", "localhost", "Web server host")
 	flag.IntVar(&options.webPort, "web-port", 35248, "Web server port")
+	flag.StringVar(&options.webTlsPrivate, "web-tls-private", "", "TLS private certificate")
+	flag.StringVar(&options.webTlsPublic, "web-tls-public", "", "TLS public certificate")
 	flag.BoolVar(&options.qdrant, "qdrant", false, "Enable Qdrant")
 	flag.StringVar(&options.qdrantHost, "qdrant-host", "localhost", "Qdrant server host")
 	flag.BoolVar(&options.qdrantSync, "qdrant-sync", false, "Qdrant embeddings sync")

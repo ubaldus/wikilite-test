@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 )
 
@@ -236,7 +237,24 @@ func (s *WebServer) Start(host string, port int) error {
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(subFS))))
 
-	addr := fmt.Sprintf("%s:%d", host, port)
-	log.Printf("Starting web server at http://%s/\n", addr)
-	return http.ListenAndServe(addr, nil)
+	address := fmt.Sprintf("%s:%d", host, port)
+	if options.webTlsPrivate != "" && options.webTlsPublic != "" {
+		if _, err := os.Stat(options.webTlsPrivate); err != nil {
+			return fmt.Errorf("failed to open private certificate")
+		} else if _, err := os.Stat(options.webTlsPublic); err != nil {
+			return fmt.Errorf("failed to open public certificate")
+		} else {
+			log.Println("Starting server on https://" + address)
+			if err := http.ListenAndServeTLS(address, options.webTlsPublic, options.webTlsPrivate, nil); err != nil {
+				return err
+			}
+		}
+	} else {
+		log.Println("Starting server on http://" + address)
+		if err := http.ListenAndServe(address, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
