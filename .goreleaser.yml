@@ -2,7 +2,7 @@ before:
   hooks:
     - go mod download
     - apt-get update -y
-    - apt-get install -y gcc-multilib
+    - apt-get install -y gcc-multilib libsqlite3-dev
 
 builds:
   - id: "wikilite-darwin-amd64"
@@ -77,8 +77,8 @@ builds:
     env:
       - CC=arm-linux-gnueabihf-gcc
       - CXX=arm-linux-gnueabihf-g++
-      - CGO_CFLAGS=--sysroot=/sysroot/linux/armhf
-      - CGO_LDFLAGS=--sysroot=/sysroot/linux/armhf
+      - CGO_CFLAGS=--sysroot=/sysroot/linux/armhf -I/sysroot/linux/armhf/usr/include/arm-linux-gnueabihf
+      - CGO_LDFLAGS=--sysroot=/sysroot/linux/armhf -L/sysroot/linux/armhf/usr/lib/arm-linux-gnueabihf -lsqlite3
       - PKG_CONFIG_SYSROOT_DIR=/sysroot/linux/armhf
       - PKG_CONFIG_PATH=/sysroot/linux/armhf/opt/vc/lib/pkgconfig:/sysroot/linux/armhf/usr/lib/arm-linux-gnueabihf/pkgconfig:/sysroot/linux/armhf/usr/lib/pkgconfig:/sysroot/linux/armhf/usr/local/lib/pkgconfig
     flags:
