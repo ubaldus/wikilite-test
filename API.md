@@ -106,7 +106,7 @@ Content-Type: application/json
 ```
 
 ### 4. Vector Search
-Searches using vector embeddings. Requires AI and Qdrant to be enabled.
+Searches using vector embeddings. Requires AI to be enabled.
 
 **Endpoint:** `/search/vectors`  
 **Methods:** GET, POST
@@ -242,12 +242,11 @@ curl 'http://localhost:35248/api/article?id=123'
 ### Vector Search
 To use vector search:
 1. Start the server with AI enabled: `--ai`
-2. Enable Qdrant: `--qdrant`
-3. Configure AI/Qdrant host/port if not using defaults
+2. Configure AI host/port if not using defaults
 
 Example:
 ```bash
-./wikilite --ai --qdrant --web
+./wikilite --ai --web
 ```
 
 ## Notes

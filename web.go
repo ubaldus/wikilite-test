@@ -176,7 +176,7 @@ func (s *WebServer) handleAPISearchContent(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *WebServer) handleAPISearchVectors(w http.ResponseWriter, r *http.Request) {
-	if !options.ai || !options.qdrant {
+	if !options.ai {
 		s.sendAPIError(w, "Vector search is not enabled", http.StatusBadRequest)
 		return
 	}
