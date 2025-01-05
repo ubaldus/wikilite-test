@@ -1,4 +1,4 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -255,11 +255,11 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
 		WITH matched_titles AS (
-  		SELECT rowid, title, bm25(article_search) AS relevance
+			SELECT rowid, title, bm25(article_search) AS relevance
 			FROM article_search
 			WHERE article_search MATCH ?
 		)
-    SELECT DISTINCT
+		SELECT DISTINCT
 			a.id as article_id,
 			a.title,
 			a.entity,
@@ -268,8 +268,8 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			relevance
 		FROM matched_titles mt
 		JOIN articles a ON a.id = mt.rowid
-    ORDER BY mt.relevance ASC
-    LIMIT ?
+		ORDER BY mt.relevance ASC
+		LIMIT ?
 	`
 
 	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
@@ -295,21 +295,21 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 		textQuery := `
 			SELECT text, (
 				SELECT id 
-    		FROM sections 
-    		WHERE article_id = ? 
-    		LIMIT 1
+				FROM sections 
+				WHERE article_id = ? 
+				LIMIT 1
 			) AS section_title
 			FROM hashes
 			WHERE id = (
-    		SELECT hash_id 
-    		FROM content 
-    		WHERE section_id = (
-        	SELECT id 
-        	FROM sections 
-       		WHERE article_id = ? 
-        	LIMIT 1
-    		) 
-    		LIMIT 1
+				SELECT hash_id 
+				FROM content 
+				WHERE section_id = (
+					SELECT id 
+					FROM sections 
+					WHERE article_id = ? 
+					LIMIT 1
+				) 
+				LIMIT 1
 			)
 			LIMIT 1;
 		`
@@ -326,7 +326,7 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 
 func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
-  	SELECT rowid, text, bm25(hash_search) as relevance
+		SELECT rowid, text, bm25(hash_search) as relevance
 		FROM hash_search
 		WHERE hash_search MATCH ?
 		ORDER BY relevance ASC
@@ -432,14 +432,28 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 	}
 
 	rows, err := h.db.Query(`
+		WITH coarse_matches AS (
+			SELECT
+				rowid
+			FROM embedding_index
+			WHERE embedding MATCH vec_quantize_binary(?)
+			ORDER BY distance
+			LIMIT ? * 8
+		),
+		precise_matches AS (
+			SELECT
+				e.rowid,
+				vec_distance_L2(e.embedding, ?) AS distance
+			FROM embeddings e
+			JOIN coarse_matches cm ON e.rowid = cm.rowid
+		)
 		SELECT
 			rowid,
 			distance
-		FROM embeddings
-		WHERE embedding MATCH ?
+		FROM precise_matches
 		ORDER BY distance
-		LIMIT ?
-	`, querySerialized, limit)
+		LIMIT ?;
+	`, querySerialized, limit, querySerialized, limit)
 	if err != nil {
 		return nil, fmt.Errorf("vector search error: %w", err)
 	}
@@ -549,20 +563,16 @@ func (h *DBHandler) RebuildArticleSearch() error {
 	}
 
 	_, err = h.db.Exec(`
-        CREATE VIRTUAL TABLE article_search USING fts5(
-            title,
-            content='articles',
-            content_rowid='id'
-        )
-    `)
+		CREATE VIRTUAL TABLE article_search USING fts5(
+			title,
+			content='articles',
+			content_rowid='id'
+		)`)
 	if err != nil {
 		return fmt.Errorf("error recreating article_search table: %v", err)
 	}
 
-	_, err = h.db.Exec(`
-        INSERT INTO article_search(rowid, title)
-        SELECT id, title FROM articles
-    `)
+	_, err = h.db.Exec("INSERT INTO article_search(rowid, title) SELECT id, title FROM articles")
 	if err != nil {
 		return fmt.Errorf("error populating article_search table: %v", err)
 	}
@@ -577,20 +587,16 @@ func (h *DBHandler) RebuildHashSearch() error {
 	}
 
 	_, err = h.db.Exec(`
-        CREATE VIRTUAL TABLE hash_search USING fts5(
-            text,
-            content='hashes',
-            content_rowid='id'
-        )
-    `)
+		CREATE VIRTUAL TABLE hash_search USING fts5(
+			text,
+			content='hashes',
+			content_rowid='id'
+		)`)
 	if err != nil {
 		return fmt.Errorf("error recreating hash_search table: %v", err)
 	}
 
-	_, err = h.db.Exec(`
-        INSERT INTO hash_search(rowid, text)
-        SELECT id, text FROM hashes
-    `)
+	_, err = h.db.Exec("INSERT INTO hash_search(rowid, text) SELECT id, text FROM hashes")
 	if err != nil {
 		return fmt.Errorf("error populating hash_search table: %v", err)
 	}
@@ -613,6 +619,12 @@ func (h *DBHandler) RebuildEmbeddings() error {
 		return err
 	}
 	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embeddings USING vec0(embedding float[%d])", arraySize)); err != nil {
+		return fmt.Errorf("error creating embeddings table: %w", err)
+	}
+	if _, err := h.db.Exec("DROP TABLE IF EXISTS embedding_index"); err != nil {
+		return err
+	}
+	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embedding_index USING vec0(embedding bit[%d])", arraySize)); err != nil {
 		return fmt.Errorf("error creating embeddings table: %w", err)
 	}
 
@@ -660,6 +672,10 @@ func (h *DBHandler) RebuildEmbeddings() error {
 					log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
 					continue
 				}
+				if _, err := h.db.Exec("INSERT OR REPLACE INTO embedding_index (rowid, embedding) VALUES (?, vec_quantize_binary(?))", hashData.ID, v); err != nil {
+					log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
+					continue
+				}
 			}
 		}
 		processedCount := offset + len(hashesData)
@@ -685,36 +701,31 @@ func (h *DBHandler) Optimize() error {
 
 	log.Println("Deleting duplicate sections")
 	_, err = tx.Exec(`
-        DELETE FROM sections
-        WHERE id NOT IN (
-            SELECT MAX(id)
-            FROM sections
-            GROUP BY article_id, title
-        )
-    `)
+		DELETE FROM sections
+		WHERE id NOT IN (
+			SELECT MAX(id)
+			FROM sections
+			GROUP BY article_id, title
+		)`)
 	if err != nil {
 		return fmt.Errorf("error deleting duplicate sections: %v", err)
 	}
 
 	log.Println("Updating hashes for orphaned content")
 	_, err = tx.Exec(`
-        UPDATE hashes
-        SET pow = pow - 1
-        WHERE id IN (
-            SELECT hash_id
-            FROM content
-            WHERE section_id NOT IN (SELECT id FROM sections)
-        )
-    `)
+		UPDATE hashes
+		SET pow = pow - 1
+		WHERE id IN (
+			SELECT hash_id
+			FROM content
+			WHERE section_id NOT IN (SELECT id FROM sections)
+		)`)
 	if err != nil {
 		return fmt.Errorf("error updating hashes for orphaned content: %v", err)
 	}
 
 	log.Println("Deleting orphaned content")
-	_, err = tx.Exec(`
-        DELETE FROM content
-        WHERE section_id NOT IN (SELECT id FROM sections)
-    `)
+	_, err = tx.Exec("DELETE FROM content WHERE section_id NOT IN (SELECT id FROM sections)")
 	if err != nil {
 		return fmt.Errorf("error deleting orphaned content: %v", err)
 	}

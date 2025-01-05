@@ -1,4 +1,4 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -64,7 +64,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.optimize, "optimize", false, "Optimize database")
 
 	flag.Usage = func() {
-		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")
+		fmt.Println("Copyright:", "2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>")
 		fmt.Println("Version:", Version)
 		fmt.Printf("Usage: %s [options]\n", os.Args[0])
 		fmt.Println("Options:\n")
