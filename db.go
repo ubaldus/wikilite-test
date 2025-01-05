@@ -435,7 +435,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		WITH coarse_matches AS (
 			SELECT
 				rowid
-			FROM embedding_index
+			FROM embeddings_index
 			WHERE embedding MATCH vec_quantize_binary(?)
 			ORDER BY distance
 			LIMIT ? * 8
@@ -621,10 +621,10 @@ func (h *DBHandler) RebuildEmbeddings() error {
 	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embeddings USING vec0(embedding float[%d])", arraySize)); err != nil {
 		return fmt.Errorf("error creating embeddings table: %w", err)
 	}
-	if _, err := h.db.Exec("DROP TABLE IF EXISTS embedding_index"); err != nil {
+	if _, err := h.db.Exec("DROP TABLE IF EXISTS embeddings_index"); err != nil {
 		return err
 	}
-	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embedding_index USING vec0(embedding bit[%d])", arraySize)); err != nil {
+	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embeddings_index USING vec0(embedding bit[%d])", arraySize)); err != nil {
 		return fmt.Errorf("error creating embeddings table: %w", err)
 	}
 
@@ -672,7 +672,7 @@ func (h *DBHandler) RebuildEmbeddings() error {
 					log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
 					continue
 				}
-				if _, err := h.db.Exec("INSERT OR REPLACE INTO embedding_index (rowid, embedding) VALUES (?, vec_quantize_binary(?))", hashData.ID, v); err != nil {
+				if _, err := h.db.Exec("INSERT OR REPLACE INTO embeddings_index (rowid, embedding) VALUES (?, vec_quantize_binary(?))", hashData.ID, v); err != nil {
 					log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
 					continue
 				}
