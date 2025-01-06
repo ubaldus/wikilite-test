@@ -1,4 +1,4 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -6,9 +6,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"sort"
 	"time"
 
+	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -66,6 +66,7 @@ func (h *DBHandler) initializeDB() error {
 }
 
 func NewDBHandler(dbPath string) (*DBHandler, error) {
+	sqlite_vec.Auto()
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %v", err)
@@ -254,11 +255,11 @@ func (h *DBHandler) GetArticle(articleID int) ([]ArticleResult, error) {
 func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
 		WITH matched_titles AS (
-  		SELECT rowid, title, bm25(article_search) AS relevance
+			SELECT rowid, title, bm25(article_search) AS relevance
 			FROM article_search
 			WHERE article_search MATCH ?
 		)
-    SELECT DISTINCT
+		SELECT DISTINCT
 			a.id as article_id,
 			a.title,
 			a.entity,
@@ -267,8 +268,8 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			relevance
 		FROM matched_titles mt
 		JOIN articles a ON a.id = mt.rowid
-    ORDER BY mt.relevance ASC
-    LIMIT ?
+		ORDER BY mt.relevance ASC
+		LIMIT ?
 	`
 
 	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
@@ -294,21 +295,21 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 		textQuery := `
 			SELECT text, (
 				SELECT id 
-    		FROM sections 
-    		WHERE article_id = ? 
-    		LIMIT 1
+				FROM sections 
+				WHERE article_id = ? 
+				LIMIT 1
 			) AS section_title
 			FROM hashes
 			WHERE id = (
-    		SELECT hash_id 
-    		FROM content 
-    		WHERE section_id = (
-        	SELECT id 
-        	FROM sections 
-       		WHERE article_id = ? 
-        	LIMIT 1
-    		) 
-    		LIMIT 1
+				SELECT hash_id 
+				FROM content 
+				WHERE section_id = (
+					SELECT id 
+					FROM sections 
+					WHERE article_id = ? 
+					LIMIT 1
+				) 
+				LIMIT 1
 			)
 			LIMIT 1;
 		`
@@ -323,88 +324,9 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 	return results, nil
 }
 
-func (h *DBHandler) SearchHash(hashes []string, scores []float64, limit int) ([]SearchResult, error) {
-	if len(hashes) != len(scores) {
-		return nil, fmt.Errorf("hashes and scores arrays must have the same length")
-	}
-
-	hashScoreMap := make(map[string]float64, len(hashes))
-	for i, hash := range hashes {
-		hashScoreMap[hash] = scores[i]
-	}
-
-	hashString := ""
-	for i, hash := range hashes {
-		if i > 0 {
-			hashString += ", "
-		}
-		hashString += "'" + hash + "'"
-	}
-
-	sqlQuery := fmt.Sprintf(`
-    SELECT DISTINCT
-      a.id as article_id,
-      a.title,
-      a.entity,
-      s.title as section_title,
-			s.id as section_id,
-      h.text,
-      h.hash
-    FROM hashes h
-    JOIN content c ON c.hash_id = h.id
-    JOIN sections s ON s.id = c.section_id
-    JOIN articles a ON a.id = s.article_id
-    WHERE h.hash IN (%s)
-	`, hashString)
-
-	rows, err := h.db.Query(sqlQuery)
-	if err != nil {
-		return nil, fmt.Errorf("error executing hash search query: %w", err)
-	}
-	defer rows.Close()
-
-	var results []SearchResult
-	seenArticleIds := make(map[int]bool)
-	for rows.Next() {
-		if limit > 0 && len(results) >= limit {
-			break
-		}
-		var result SearchResult
-		var hash string
-		var articleId int
-		if err := rows.Scan(
-			&articleId,
-			&result.Title,
-			&result.Entity,
-			&result.SectionTitle,
-			&result.SectionID,
-			&result.Text,
-			&hash,
-		); err != nil {
-			return nil, fmt.Errorf("error scanning result: %v", err)
-		}
-
-		if _, seen := seenArticleIds[articleId]; seen {
-			continue
-		}
-
-		seenArticleIds[articleId] = true
-		result.ArticleID = articleId
-		result.Type = "V"
-		result.Power = hashScoreMap[hash]
-		results = append(results, result)
-	}
-
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Power > results[j].Power
-	})
-
-	return results, nil
-}
-
 func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
-  	SELECT rowid, text, bm25(hash_search) as relevance
+		SELECT rowid, text, bm25(hash_search) as relevance
 		FROM hash_search
 		WHERE hash_search MATCH ?
 		ORDER BY relevance ASC
@@ -499,120 +421,102 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 }
 
 func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, error) {
-	var results []SearchResult
-
-	vectorsQuery, err := aiEmbeddings(query)
+	queryEmbedding, err := aiEmbeddings(query)
 	if err != nil {
 		return nil, fmt.Errorf("embeddings generation error: %w", err)
 	}
-	hashes, scores, err := qdrantSearch(qd.PointsClient, options.qdrantCollection, vectorsQuery, limit*limit)
+
+	querySerialized, err := sqlite_vec.SerializeFloat32(queryEmbedding)
 	if err != nil {
-		return nil, fmt.Errorf("embedding search error: %w", err)
+		return nil, fmt.Errorf("error serializing query embedding: %w", err)
 	}
-	embeddingsResults, err := h.SearchHash(cleanHashes(hashes), scores, limit)
+
+	rows, err := h.db.Query(`
+		WITH coarse_matches AS (
+			SELECT
+				rowid
+			FROM embeddings_ann
+			WHERE embedding MATCH vec_quantize_binary(?)
+			ORDER BY distance
+			LIMIT ? * 8
+		),
+		precise_matches AS (
+			SELECT
+				e.rowid,
+				vec_distance_L2(e.embedding, ?) AS distance
+			FROM embeddings e
+			JOIN coarse_matches cm ON e.rowid = cm.rowid
+		)
+		SELECT
+			rowid,
+			distance
+		FROM precise_matches
+		ORDER BY distance
+		LIMIT ?;
+	`, querySerialized, limit, querySerialized, limit)
 	if err != nil {
-		return nil, fmt.Errorf("database hashes search error: %w", err)
+		return nil, fmt.Errorf("vector search error: %w", err)
 	}
-	for _, result := range embeddingsResults {
+	defer rows.Close()
+
+	var vectorResults []struct {
+		Rowid    int64
+		Distance float64
+	}
+	for rows.Next() {
+		var rowid int64
+		var distance float64
+		if err := rows.Scan(&rowid, &distance); err != nil {
+			return nil, fmt.Errorf("error scanning vector search result: %w", err)
+		}
+		vectorResults = append(vectorResults, struct {
+			Rowid    int64
+			Distance float64
+		}{rowid, distance})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating vector search results: %w", err)
+	}
+
+	var results []SearchResult
+	for _, vectorResult := range vectorResults {
+		sqlQuery := `
+			SELECT
+				a.id as article_id,
+				a.title,
+				a.entity,
+				s.title as section_title,
+				s.id as section_id,
+				h.text
+			FROM hashes h
+			JOIN content c ON c.hash_id = h.id
+			JOIN sections s ON s.id = c.section_id
+			JOIN articles a ON a.id = s.article_id
+			WHERE h.id = ?
+		`
+
+		var result SearchResult
+		err := h.db.QueryRow(sqlQuery, vectorResult.Rowid).Scan(
+			&result.ArticleID,
+			&result.Title,
+			&result.Entity,
+			&result.SectionTitle,
+			&result.SectionID,
+			&result.Text,
+		)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				continue // Skip if no matching article is found
+			}
+			return nil, fmt.Errorf("error fetching article info: %w", err)
+		}
+
+		result.Type = "V"
+		result.Power = vectorResult.Distance
 		results = append(results, result)
 	}
+
 	return results, nil
-}
-
-func (h *DBHandler) ProcessEmbeddings() error {
-	batchSize := 1000
-	offset := 0
-	totalCount := 0
-
-	err := h.db.QueryRow("SELECT COUNT(*) FROM hashes").Scan(&totalCount)
-	if err != nil {
-		return fmt.Errorf("error getting total count of hashes: %w", err)
-	}
-
-	err = qdrantIndexOff(qd.CollectionsClient, options.qdrantCollection)
-	if err != nil {
-		return fmt.Errorf("error disabling qdrant indexing: %w", err)
-	}
-
-	startTime := time.Now()
-	for {
-		rows, err := h.db.Query(`SELECT hash, text FROM hashes LIMIT ? OFFSET ?`, batchSize, offset)
-		if err != nil {
-			return fmt.Errorf("error querying hashes: %w", err)
-		}
-		defer rows.Close()
-
-		type HashData struct {
-			Hash string
-			Text string
-		}
-		var hashesData []HashData
-		for rows.Next() {
-			var data HashData
-			if err := rows.Scan(&data.Hash, &data.Text); err != nil {
-				return fmt.Errorf("error scanning row: %w", err)
-			}
-			hashesData = append(hashesData, data)
-		}
-		if err := rows.Err(); err != nil {
-			return fmt.Errorf("error iterating rows: %w", err)
-		}
-
-		if len(hashesData) == 0 {
-			// No more hashes to process
-			break
-		}
-
-		hashEmbeddings := make(map[string][]float32)
-		var hashesToUpdate []string
-
-		for _, hashData := range hashesData {
-			hash := hashData.Hash
-			text := hashData.Text
-
-			exists, err := qdrantHashExists(qd.PointsClient, options.qdrantCollection, hash)
-			if err != nil {
-				log.Printf("Error checking qdrant existence for hash %s: %v", hash, err)
-				continue
-			}
-			if exists {
-				log.Printf("Hash %s already exists in qdrant", hash)
-				continue
-			}
-
-			embedding, err := aiEmbeddings(text)
-			if err != nil {
-				log.Printf("Embedding generation error for hash %s: %v", hash, err)
-				continue
-			}
-			hashEmbeddings[hash] = embedding
-			hashesToUpdate = append(hashesToUpdate, hash)
-		}
-
-		if len(hashEmbeddings) > 0 {
-			err = qdrantUpsertPoints(qd.PointsClient, options.qdrantCollection, hashEmbeddings)
-			if err != nil {
-				log.Printf("Error upserting batch to qdrant: %v", err)
-			}
-		}
-
-		processedCount := offset + len(hashesData)
-		progress := float64(processedCount) / float64(totalCount) * 100
-		elapsed := time.Since(startTime)
-		estimatedTotalTime := time.Duration(float64(elapsed) / (progress / 100.0))
-		remainingTime := estimatedTotalTime - elapsed
-
-		log.Printf("Embedding progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
-
-		offset += batchSize
-	}
-
-	err = qdrantIndexOn(qd.CollectionsClient, options.qdrantCollection)
-	if err != nil {
-		return fmt.Errorf("error enabling qdrant indexing: %w", err)
-	}
-
-	return nil
 }
 
 func (h *DBHandler) Pragma(pragmas []string) error {
@@ -659,20 +563,16 @@ func (h *DBHandler) RebuildArticleSearch() error {
 	}
 
 	_, err = h.db.Exec(`
-        CREATE VIRTUAL TABLE article_search USING fts5(
-            title,
-            content='articles',
-            content_rowid='id'
-        )
-    `)
+		CREATE VIRTUAL TABLE article_search USING fts5(
+			title,
+			content='articles',
+			content_rowid='id'
+		)`)
 	if err != nil {
 		return fmt.Errorf("error recreating article_search table: %v", err)
 	}
 
-	_, err = h.db.Exec(`
-        INSERT INTO article_search(rowid, title)
-        SELECT id, title FROM articles
-    `)
+	_, err = h.db.Exec("INSERT INTO article_search(rowid, title) SELECT id, title FROM articles")
 	if err != nil {
 		return fmt.Errorf("error populating article_search table: %v", err)
 	}
@@ -687,22 +587,106 @@ func (h *DBHandler) RebuildHashSearch() error {
 	}
 
 	_, err = h.db.Exec(`
-        CREATE VIRTUAL TABLE hash_search USING fts5(
-            text,
-            content='hashes',
-            content_rowid='id'
-        )
-    `)
+		CREATE VIRTUAL TABLE hash_search USING fts5(
+			text,
+			content='hashes',
+			content_rowid='id'
+		)`)
 	if err != nil {
 		return fmt.Errorf("error recreating hash_search table: %v", err)
 	}
 
-	_, err = h.db.Exec(`
-        INSERT INTO hash_search(rowid, text)
-        SELECT id, text FROM hashes
-    `)
+	_, err = h.db.Exec("INSERT INTO hash_search(rowid, text) SELECT id, text FROM hashes")
 	if err != nil {
 		return fmt.Errorf("error populating hash_search table: %v", err)
+	}
+
+	return nil
+}
+
+func (h *DBHandler) RebuildEmbeddings() error {
+	batchSize := 1000
+	offset := 0
+	totalCount := 0
+
+	err := h.db.QueryRow("SELECT COUNT(*) FROM hashes").Scan(&totalCount)
+	if err != nil {
+		return fmt.Errorf("error getting total count of hashes: %w", err)
+	}
+
+	arraySize := options.aiEmbeddingSize
+	if _, err := h.db.Exec("DROP TABLE IF EXISTS embeddings"); err != nil {
+		return err
+	}
+	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embeddings USING vec0(embedding float[%d])", arraySize)); err != nil {
+		return fmt.Errorf("error creating embeddings table: %w", err)
+	}
+	if _, err := h.db.Exec("DROP TABLE IF EXISTS embeddings_ann"); err != nil {
+		return err
+	}
+	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embeddings_ann USING vec0(embedding bit[%d])", arraySize)); err != nil {
+		return fmt.Errorf("error creating embeddings table: %w", err)
+	}
+
+	startTime := time.Now()
+	for {
+		rows, err := h.db.Query(`SELECT id, hash, text FROM hashes LIMIT ? OFFSET ?`, batchSize, offset)
+		if err != nil {
+			return fmt.Errorf("error querying hashes: %w", err)
+		}
+		defer rows.Close()
+
+		type HashData struct {
+			ID   int
+			Hash string
+			Text string
+		}
+		var hashesData []HashData
+		for rows.Next() {
+			var data HashData
+			if err := rows.Scan(&data.ID, &data.Hash, &data.Text); err != nil {
+				return fmt.Errorf("error scanning row: %w", err)
+			}
+			hashesData = append(hashesData, data)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("error iterating rows: %w", err)
+		}
+
+		if len(hashesData) == 0 {
+			// No more hashes to process
+			break
+		}
+
+		for _, hashData := range hashesData {
+			embedding, err := aiEmbeddings(hashData.Text)
+			if err != nil {
+				log.Printf("Embedding generation error for hash %s: %v", hashData.Hash, err)
+				continue
+			}
+
+			if v, err := sqlite_vec.SerializeFloat32(embedding); err != nil {
+				log.Printf("Embedding serialization error for hash %s: %v", hashData.Hash, err)
+			} else {
+				if _, err := h.db.Exec("INSERT OR REPLACE INTO embeddings (rowid, embedding) VALUES (?, ?)", hashData.ID, v); err != nil {
+					log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
+					continue
+				}
+				if _, err := h.db.Exec("INSERT OR REPLACE INTO embeddings_ann (rowid, embedding) VALUES (?, vec_quantize_binary(?))", hashData.ID, v); err != nil {
+					log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
+					continue
+				}
+			}
+		}
+		processedCount := offset + len(hashesData)
+		progress := float64(processedCount) / float64(totalCount) * 100
+		elapsed := time.Since(startTime)
+		estimatedTotalTime := time.Duration(float64(elapsed) / (progress / 100.0))
+		remainingTime := estimatedTotalTime - elapsed
+
+		log.Printf("Embedding progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
+
+		offset += batchSize
 	}
 
 	return nil
@@ -717,36 +701,31 @@ func (h *DBHandler) Optimize() error {
 
 	log.Println("Deleting duplicate sections")
 	_, err = tx.Exec(`
-        DELETE FROM sections
-        WHERE id NOT IN (
-            SELECT MAX(id)
-            FROM sections
-            GROUP BY article_id, title
-        )
-    `)
+		DELETE FROM sections
+		WHERE id NOT IN (
+			SELECT MAX(id)
+			FROM sections
+			GROUP BY article_id, title
+		)`)
 	if err != nil {
 		return fmt.Errorf("error deleting duplicate sections: %v", err)
 	}
 
 	log.Println("Updating hashes for orphaned content")
 	_, err = tx.Exec(`
-        UPDATE hashes
-        SET pow = pow - 1
-        WHERE id IN (
-            SELECT hash_id
-            FROM content
-            WHERE section_id NOT IN (SELECT id FROM sections)
-        )
-    `)
+		UPDATE hashes
+		SET pow = pow - 1
+		WHERE id IN (
+			SELECT hash_id
+			FROM content
+			WHERE section_id NOT IN (SELECT id FROM sections)
+		)`)
 	if err != nil {
 		return fmt.Errorf("error updating hashes for orphaned content: %v", err)
 	}
 
 	log.Println("Deleting orphaned content")
-	_, err = tx.Exec(`
-        DELETE FROM content
-        WHERE section_id NOT IN (SELECT id FROM sections)
-    `)
+	_, err = tx.Exec("DELETE FROM content WHERE section_id NOT IN (SELECT id FROM sections)")
 	if err != nil {
 		return fmt.Errorf("error deleting orphaned content: %v", err)
 	}

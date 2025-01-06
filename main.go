@@ -1,4 +1,4 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.0.46"
+const Version = "0.1.1"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -24,13 +24,9 @@ type Config struct {
 	aiApiKey         string
 	aiEmbeddingModel string
 	aiEmbeddingSize  int
+	aiEmbeddingSync  bool
 	aiLlmModel       string
 	aiUrl            string
-	qdrant           bool
-	qdrantHost       string
-	qdrantPort       int
-	qdrantSync       bool
-	qdrantCollection string
 	log              bool
 	logFile          string
 	cli              bool
@@ -41,7 +37,6 @@ type Config struct {
 
 var (
 	db      *DBHandler
-	qd      *QdrantHandler
 	options *Config
 )
 
@@ -50,6 +45,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.ai, "ai", false, "Enable AI")
 	flag.IntVar(&options.aiEmbeddingSize, "ai-embedding-size", 384, "AI embedding size")
 	flag.StringVar(&options.aiEmbeddingModel, "ai-embedding-model", "all-minilm", "AI embedding model")
+	flag.BoolVar(&options.aiEmbeddingSync, "ai-embedding-sync", false, "AI embedding sync")
 	flag.StringVar(&options.aiLlmModel, "ai-llm-model", "gemma2", "AI LLM model")
 	flag.StringVar(&options.aiUrl, "ai-url", "http://localhost:11434/v1/", "AI base url")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
@@ -60,11 +56,6 @@ func parseConfig() (*Config, error) {
 	flag.IntVar(&options.webPort, "web-port", 35248, "Web server port")
 	flag.StringVar(&options.webTlsPrivate, "web-tls-private", "", "TLS private certificate")
 	flag.StringVar(&options.webTlsPublic, "web-tls-public", "", "TLS public certificate")
-	flag.BoolVar(&options.qdrant, "qdrant", false, "Enable Qdrant")
-	flag.StringVar(&options.qdrantHost, "qdrant-host", "localhost", "Qdrant server host")
-	flag.BoolVar(&options.qdrantSync, "qdrant-sync", false, "Qdrant embeddings sync")
-	flag.IntVar(&options.qdrantPort, "qdrant-port", 6334, "Qdrant server port")
-	flag.StringVar(&options.qdrantCollection, "qdrant-collection", "wikilite", "Qdrant collection")
 	flag.BoolVar(&options.log, "log", false, "Enable logging")
 	flag.StringVar(&options.logFile, "log-file", "", "Log file path")
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
@@ -73,7 +64,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.optimize, "optimize", false, "Optimize database")
 
 	flag.Usage = func() {
-		fmt.Println("Copyright:", "2024 by Ubaldo Porcheddu <ubaldo@eja.it>")
+		fmt.Println("Copyright:", "2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>")
 		fmt.Println("Version:", Version)
 		fmt.Printf("Usage: %s [options]\n", os.Args[0])
 		fmt.Println("Options:\n")
@@ -115,7 +106,7 @@ func main() {
 	}
 	defer db.Close()
 
-	if options.optimize || options.importPath != "" {
+	if options.optimize || options.importPath != "" || options.aiEmbeddingSync {
 		if err := db.PragmaImportMode(); err != nil {
 			log.Fatalf("Error setting database in import mode: %v\n", err)
 		}
@@ -124,24 +115,18 @@ func main() {
 				log.Fatalf("Error processing import: %v\n", err)
 			}
 		}
-		if err := db.Optimize(); err != nil {
-			log.Fatalf("Error during database optimization: %v\n", err)
+		if options.optimize || options.importPath != "" {
+			if err := db.Optimize(); err != nil {
+				log.Fatalf("Error during database optimization: %v\n", err)
+			}
+		}
+		if options.aiEmbeddingSync {
+			if err := db.RebuildEmbeddings(); err != nil {
+				log.Fatalf("Error processing embeddings: %v\n", err)
+			}
 		}
 		if err := db.PragmaReadMode(); err != nil {
 			log.Fatalf("Error setting database in read mode: %v\n", err)
-		}
-	}
-
-	if options.qdrant || options.qdrantSync {
-		qd, err = qdrantInit(options.qdrantHost, options.qdrantPort, options.qdrantCollection, options.aiEmbeddingSize)
-		if err != nil {
-			log.Fatalf("Failed to initialize qdrant: %v", err)
-		}
-
-		if options.qdrantSync {
-			if err := db.ProcessEmbeddings(); err != nil {
-				log.Fatalf("Error processing embeddings: %v\n", err)
-			}
 		}
 	}
 
