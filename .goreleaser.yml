@@ -2,7 +2,7 @@ before:
   hooks:
     - go mod download
     - apt-get update -y
-    - apt-get install -y gcc-multilib libsqlite3-dev
+    - apt-get install -y gcc-multilib
 
 builds:
   - id: "wikilite-darwin-amd64"
@@ -65,26 +65,6 @@ builds:
       - -tags=fts5 -m32
     ldflags:
       - -s -w -extldflags "-static"
-  - id: "wikilite-linux-armhf"
-    main: .
-    binary: wikilite
-    goos:
-      - linux
-    goarch:
-      - arm
-    goarm:
-      - 7
-    env:
-      - CC=arm-linux-gnueabihf-gcc
-      - CXX=arm-linux-gnueabihf-g++
-      - CGO_CFLAGS=--sysroot=/sysroot/linux/armhf -I/sysroot/linux/armhf/usr/include/arm-linux-gnueabihf
-      - CGO_LDFLAGS=--sysroot=/sysroot/linux/armhf -L/sysroot/linux/armhf/usr/lib/arm-linux-gnueabihf -lsqlite3
-      - PKG_CONFIG_SYSROOT_DIR=/sysroot/linux/armhf
-      - PKG_CONFIG_PATH=/sysroot/linux/armhf/opt/vc/lib/pkgconfig:/sysroot/linux/armhf/usr/lib/arm-linux-gnueabihf/pkgconfig:/sysroot/linux/armhf/usr/lib/pkgconfig:/sysroot/linux/armhf/usr/local/lib/pkgconfig
-    flags:
-      - -mod=readonly
-    ldflags:
-      - -s -w -extldflags "-static"
   - id: "wikilite-linux-arm64"
     main: .
     binary: wikilite
@@ -142,7 +122,6 @@ archives:
       - wikilite-darwin-arm64
       - wikilite-linux-amd64
       - wikilite-linux-arm64
-      - wikilite-linux-armhf
       - wikilite-linux-i386
       - wikilite-windows-amd64
       - wikilite-windows-arm64
