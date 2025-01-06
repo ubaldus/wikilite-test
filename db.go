@@ -6,9 +6,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"sort"
 	"time"
 
-	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -66,7 +66,6 @@ func (h *DBHandler) initializeDB() error {
 }
 
 func NewDBHandler(dbPath string) (*DBHandler, error) {
-	sqlite_vec.Auto()
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %v", err)
@@ -426,60 +425,80 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		return nil, fmt.Errorf("embeddings generation error: %w", err)
 	}
 
-	querySerialized, err := sqlite_vec.SerializeFloat32(queryEmbedding)
-	if err != nil {
-		return nil, fmt.Errorf("error serializing query embedding: %w", err)
-	}
+	quantizedQuery := aiQuantizeBinary(queryEmbedding)
 
-	rows, err := h.db.Query(`
-		WITH coarse_matches AS (
-			SELECT
-				rowid
-			FROM embeddings_ann
-			WHERE embedding MATCH vec_quantize_binary(?)
-			ORDER BY distance
-			LIMIT ? * 8
-		),
-		precise_matches AS (
-			SELECT
-				e.rowid,
-				vec_distance_L2(e.embedding, ?) AS distance
-			FROM embeddings e
-			JOIN coarse_matches cm ON e.rowid = cm.rowid
-		)
-		SELECT
-			rowid,
-			distance
-		FROM precise_matches
-		ORDER BY distance
-		LIMIT ?;
-	`, querySerialized, limit, querySerialized, limit)
+	rows, err := h.db.Query("SELECT id, embedding FROM vectors_ann")
 	if err != nil {
-		return nil, fmt.Errorf("vector search error: %w", err)
+		return nil, fmt.Errorf("error querying vectors_ann: %w", err)
 	}
 	defer rows.Close()
 
-	var vectorResults []struct {
-		Rowid    int64
-		Distance float64
-	}
-	for rows.Next() {
-		var rowid int64
-		var distance float64
-		if err := rows.Scan(&rowid, &distance); err != nil {
-			return nil, fmt.Errorf("error scanning vector search result: %w", err)
-		}
-		vectorResults = append(vectorResults, struct {
-			Rowid    int64
-			Distance float64
-		}{rowid, distance})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating vector search results: %w", err)
+	type VectorDistance struct {
+		ID       int64
+		Distance float32
 	}
 
+	topANNResults := make([]VectorDistance, 0, limit*8)
+	for rows.Next() {
+		var id int64
+		var embeddingBlob []byte
+		if err := rows.Scan(&id, &embeddingBlob); err != nil {
+			return nil, fmt.Errorf("error scanning vector_ann row: %w", err)
+		}
+
+		distance, err := aiHammingDistance(quantizedQuery, embeddingBlob)
+		if err != nil {
+			return nil, fmt.Errorf("error calculating Hamming distance: %w", err)
+		}
+
+		if len(topANNResults) < limit*8 {
+			topANNResults = append(topANNResults, VectorDistance{ID: id, Distance: distance})
+		} else {
+			if distance < topANNResults[limit*8-1].Distance {
+				topANNResults[limit*8-1] = VectorDistance{ID: id, Distance: distance}
+			}
+		}
+		sort.Slice(topANNResults, func(i, j int) bool {
+			return topANNResults[i].Distance < topANNResults[j].Distance
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating vector_ann rows: %w", err)
+	}
+
+	topResults := make([]VectorDistance, 0, limit)
+	for _, annResult := range topANNResults {
+		var embeddingBlob []byte
+		err := h.db.QueryRow("SELECT embedding FROM vectors WHERE id = ?", annResult.ID).Scan(&embeddingBlob)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				continue // Skip if no matching vector is found
+			}
+			return nil, fmt.Errorf("error fetching vector embedding: %w", err)
+		}
+
+		embedding := aiBytesToFloat32(embeddingBlob)
+		distance, err := aiL2Distance(queryEmbedding, embedding)
+		if err != nil {
+			return nil, fmt.Errorf("error calculating L2 distance: %w", err)
+		}
+
+		if len(topResults) < limit {
+			topResults = append(topResults, VectorDistance{ID: annResult.ID, Distance: float32(distance)})
+		} else {
+			if distance < topResults[len(topResults)-1].Distance {
+				topResults[len(topResults)-1] = VectorDistance{ID: annResult.ID, Distance: float32(distance)}
+			}
+		}
+	}
+
+	sort.Slice(topResults, func(i, j int) bool {
+		return topResults[i].Distance < topResults[j].Distance
+	})
+
 	var results []SearchResult
-	for _, vectorResult := range vectorResults {
+	for _, vd := range topResults {
 		sqlQuery := `
 			SELECT
 				a.id as article_id,
@@ -496,7 +515,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		`
 
 		var result SearchResult
-		err := h.db.QueryRow(sqlQuery, vectorResult.Rowid).Scan(
+		err := h.db.QueryRow(sqlQuery, vd.ID).Scan(
 			&result.ArticleID,
 			&result.Title,
 			&result.Entity,
@@ -506,13 +525,13 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				continue // Skip if no matching article is found
+				continue
 			}
 			return nil, fmt.Errorf("error fetching article info: %w", err)
 		}
 
 		result.Type = "V"
-		result.Power = vectorResult.Distance
+		result.Power = float64(vd.Distance)
 		results = append(results, result)
 	}
 
@@ -614,18 +633,17 @@ func (h *DBHandler) RebuildEmbeddings() error {
 		return fmt.Errorf("error getting total count of hashes: %w", err)
 	}
 
-	arraySize := options.aiEmbeddingSize
-	if _, err := h.db.Exec("DROP TABLE IF EXISTS embeddings"); err != nil {
+	if _, err := h.db.Exec("DROP TABLE IF EXISTS vectors"); err != nil {
 		return err
 	}
-	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embeddings USING vec0(embedding float[%d])", arraySize)); err != nil {
-		return fmt.Errorf("error creating embeddings table: %w", err)
+	if _, err := h.db.Exec("CREATE TABLE vectors (id INTEGER PRIMARY KEY, embedding BLOB)"); err != nil {
+		return fmt.Errorf("error creating vectors table: %w", err)
 	}
-	if _, err := h.db.Exec("DROP TABLE IF EXISTS embeddings_ann"); err != nil {
+	if _, err := h.db.Exec("DROP TABLE IF EXISTS vectors_ann"); err != nil {
 		return err
 	}
-	if _, err := h.db.Exec(fmt.Sprintf("CREATE VIRTUAL TABLE embeddings_ann USING vec0(embedding bit[%d])", arraySize)); err != nil {
-		return fmt.Errorf("error creating embeddings table: %w", err)
+	if _, err := h.db.Exec("CREATE TABLE vectors_ann (id INTEGER PRIMARY KEY, embedding BLOB)"); err != nil {
+		return fmt.Errorf("error creating vectors_ann table: %w", err)
 	}
 
 	startTime := time.Now()
@@ -665,17 +683,13 @@ func (h *DBHandler) RebuildEmbeddings() error {
 				continue
 			}
 
-			if v, err := sqlite_vec.SerializeFloat32(embedding); err != nil {
-				log.Printf("Embedding serialization error for hash %s: %v", hashData.Hash, err)
-			} else {
-				if _, err := h.db.Exec("INSERT OR REPLACE INTO embeddings (rowid, embedding) VALUES (?, ?)", hashData.ID, v); err != nil {
-					log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
-					continue
-				}
-				if _, err := h.db.Exec("INSERT OR REPLACE INTO embeddings_ann (rowid, embedding) VALUES (?, vec_quantize_binary(?))", hashData.ID, v); err != nil {
-					log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
-					continue
-				}
+			if _, err := h.db.Exec("INSERT OR REPLACE INTO vectors (rowid, embedding) VALUES (?, ?)", hashData.ID, aiFloat32ToBytes(embedding)); err != nil {
+				log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
+				continue
+			}
+			if _, err := h.db.Exec("INSERT OR REPLACE INTO vectors_ann (rowid, embedding) VALUES (?, ?)", hashData.ID, aiQuantizeBinary(embedding)); err != nil {
+				log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
+				continue
 			}
 		}
 		processedCount := offset + len(hashesData)
