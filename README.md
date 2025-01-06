@@ -5,11 +5,10 @@ Wikilite is a tool that allows you to create a local SQLite database of Wikipedi
 ## Features
 
 *   **Fast and Flexible Lexical Searching**: Leverages FTS5 (Full-Text Search 5) for efficient and fast keyword-based searching within the SQLite database. This is great for finding exact matches of words and phrases in your query.
-*  **Enhanced Semantic Search**: Integrates ANN quantization for powerful semantic search capabilities. This complements the FTS5 search, finding results that are *semantically similar* to your query, even if they lack exact keyword matches. This handles issues like misspellings, plurals/singulars, and different verb tenses.
+*  **Enhanced Semantic Search**: Integrates ANN quantization and text embeddings for powerful semantic search capabilities. This complements the FTS5 search by finding results that are semantically similar to your query, even if they lack exact keyword matches. It handles issues like misspellings, plurals/singulars, and different verb tenses.
 *   **Offline Access**: Access Wikipedia articles without an active internet connection.
 *   **Command-Line Interface (CLI)**: Search and query the database directly from your terminal.
 *   **Web Interface (Optional)**: Browse and search articles through a user-friendly web interface.
-*   **Semantic Search Integration (Optional)**: Leverages text embeddings for improved query understanding and retrieval based on meaning, complementing the lexical search.
 
 ## Getting Started
 
@@ -47,10 +46,6 @@ The semantic search acts as a powerful complement to FTS5, allowing you to get m
 ## Pre-built Databases
 
 Pre-built databases for several languages are also available on [Hugging Face](https://huggingface.co/datasets/eja/wikilite/tree/main). You can use these databases directly with Wikilite by downloading and decompressing them.
-
-## Supported Data Formats
-
-Wikilite expects Wikipedia dump files in XML format.
 
 ## Acknowledgments
 
