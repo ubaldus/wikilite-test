@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.1.2"
+const Version = "0.1.3"
 
 type Config struct {
 	importPath       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
@@ -121,7 +121,7 @@ func main() {
 			}
 		}
 		if options.aiEmbeddingSync {
-			if err := db.RebuildEmbeddings(); err != nil {
+			if err := db.ProcessEmbeddings(); err != nil {
 				log.Fatalf("Error processing embeddings: %v\n", err)
 			}
 		}

@@ -5,7 +5,6 @@ go 1.22.5
 toolchain go1.22.10
 
 require (
-	github.com/asg017/sqlite-vec-go-bindings v0.1.6
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/openai/openai-go v0.1.0-alpha.39
 	golang.org/x/net v0.33.0

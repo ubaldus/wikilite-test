@@ -50,6 +50,14 @@ func (h *DBHandler) initializeDB() error {
 			text TEXT NOT NULL,
 			pow INTEGER DEFAULT 0
 		)`,
+		`CREATE TABLE IF NOT EXISTS vectors (
+			id INTEGER PRIMARY KEY,
+			embedding BLOB
+		)`,
+		`CREATE TABLE IF NOT EXISTS vectors_ann (
+			id INTEGER PRIMARY KEY,
+			embedding BLOB
+		)`,
 	}
 
 	for _, query := range queries {
@@ -623,32 +631,21 @@ func (h *DBHandler) RebuildHashSearch() error {
 	return nil
 }
 
-func (h *DBHandler) RebuildEmbeddings() error {
+func (h *DBHandler) ProcessEmbeddings() error {
 	batchSize := 1000
-	offset := 0
 	totalCount := 0
+	offset := 0
 
-	err := h.db.QueryRow("SELECT COUNT(*) FROM hashes").Scan(&totalCount)
+	err := h.db.QueryRow("SELECT COUNT(*) FROM hashes WHERE id NOT IN (select id from vectors_ann)").Scan(&totalCount)
 	if err != nil {
 		return fmt.Errorf("error getting total count of hashes: %w", err)
 	}
 
-	if _, err := h.db.Exec("DROP TABLE IF EXISTS vectors"); err != nil {
-		return err
-	}
-	if _, err := h.db.Exec("CREATE TABLE vectors (id INTEGER PRIMARY KEY, embedding BLOB)"); err != nil {
-		return fmt.Errorf("error creating vectors table: %w", err)
-	}
-	if _, err := h.db.Exec("DROP TABLE IF EXISTS vectors_ann"); err != nil {
-		return err
-	}
-	if _, err := h.db.Exec("CREATE TABLE vectors_ann (id INTEGER PRIMARY KEY, embedding BLOB)"); err != nil {
-		return fmt.Errorf("error creating vectors_ann table: %w", err)
-	}
+	log.Printf("Pending embeddings: %d", totalCount)
 
 	startTime := time.Now()
 	for {
-		rows, err := h.db.Query(`SELECT id, hash, text FROM hashes LIMIT ? OFFSET ?`, batchSize, offset)
+		rows, err := h.db.Query(`SELECT id, hash, text FROM hashes WHERE id NOT IN (select id from vectors_ann) LIMIT ?`, batchSize)
 		if err != nil {
 			return fmt.Errorf("error querying hashes: %w", err)
 		}
