@@ -50,10 +50,24 @@ func (h *DBHandler) initializeDB() error {
 			text TEXT NOT NULL,
 			pow INTEGER DEFAULT 0
 		)`,
+
+		`CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
+			title,
+			content='articles',
+			content_rowid='id'
+		)`,
+
+		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
+			text,
+			content='hashes',
+			content_rowid='id'
+		)`,
+
 		`CREATE TABLE IF NOT EXISTS vectors (
 			id INTEGER PRIMARY KEY,
 			embedding BLOB
 		)`,
+
 		`CREATE TABLE IF NOT EXISTS vectors_ann (
 			id INTEGER PRIMARY KEY,
 			embedding BLOB
@@ -583,23 +597,8 @@ func (h *DBHandler) PragmaImportMode() error {
 	return h.Pragma(pragmas)
 }
 
-func (h *DBHandler) RebuildArticleSearch() error {
-	_, err := h.db.Exec("DROP TABLE IF EXISTS article_search")
-	if err != nil {
-		return fmt.Errorf("error dropping article_search table: %v", err)
-	}
-
-	_, err = h.db.Exec(`
-		CREATE VIRTUAL TABLE article_search USING fts5(
-			title,
-			content='articles',
-			content_rowid='id'
-		)`)
-	if err != nil {
-		return fmt.Errorf("error recreating article_search table: %v", err)
-	}
-
-	_, err = h.db.Exec("INSERT INTO article_search(rowid, title) SELECT id, title FROM articles")
+func (h *DBHandler) ProcessTitles() error {
+	_, err := h.db.Exec("INSERT INTO article_search(rowid, title) SELECT id, title FROM articles")
 	if err != nil {
 		return fmt.Errorf("error populating article_search table: %v", err)
 	}
@@ -607,23 +606,8 @@ func (h *DBHandler) RebuildArticleSearch() error {
 	return nil
 }
 
-func (h *DBHandler) RebuildHashSearch() error {
-	_, err := h.db.Exec("DROP TABLE IF EXISTS hash_search")
-	if err != nil {
-		return fmt.Errorf("error dropping hash_search table: %v", err)
-	}
-
-	_, err = h.db.Exec(`
-		CREATE VIRTUAL TABLE hash_search USING fts5(
-			text,
-			content='hashes',
-			content_rowid='id'
-		)`)
-	if err != nil {
-		return fmt.Errorf("error recreating hash_search table: %v", err)
-	}
-
-	_, err = h.db.Exec("INSERT INTO hash_search(rowid, text) SELECT id, text FROM hashes")
+func (h *DBHandler) ProcessContents() error {
+	_, err := h.db.Exec("INSERT INTO hash_search(rowid, text) SELECT id, text FROM hashes")
 	if err != nil {
 		return fmt.Errorf("error populating hash_search table: %v", err)
 	}
@@ -749,16 +733,6 @@ func (h *DBHandler) Optimize() error {
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
-	}
-
-	log.Println("Populating hash_search table")
-	if err := h.RebuildHashSearch(); err != nil {
-		return err
-	}
-
-	log.Println("Populating article_search table")
-	if err := h.RebuildArticleSearch(); err != nil {
-		return err
 	}
 
 	log.Println("Running VACUUM")

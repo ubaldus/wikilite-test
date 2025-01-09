@@ -1,4 +1,4 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -17,7 +17,7 @@ import (
 func aiInstruct(input string) (output string, err error) {
 	client := openai.NewClient(
 		option.WithAPIKey(options.aiApiKey),
-		option.WithBaseURL(options.aiUrl),
+		option.WithBaseURL(options.aiApiUrl),
 	)
 	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
 		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
@@ -34,7 +34,7 @@ func aiInstruct(input string) (output string, err error) {
 func aiEmbeddings(input string) (output []float32, err error) {
 	client := openai.NewClient(
 		option.WithAPIKey(options.aiApiKey),
-		option.WithBaseURL(options.aiUrl),
+		option.WithBaseURL(options.aiApiUrl),
 	)
 	response, err := client.Embeddings.New(context.TODO(), openai.EmbeddingNewParams{
 		Model:          openai.F(options.aiEmbeddingModel),

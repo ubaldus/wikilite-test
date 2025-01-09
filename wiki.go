@@ -250,6 +250,48 @@ func wikiCollectTextFromNode(node *html.Node) string {
 	return textContent
 }
 
+func wikiProcessLiElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
+	textContent := wikiCollectTextFromNode(node)
+	if strings.TrimSpace(textContent) != "" {
+		// Add bullet point
+		textContent = "\u2022 " + textContent
+	}
+	wikiProcessTextElementWithText(textContent, lastHeading, power, groupedItems)
+}
+
+func wikiProcessTextElementWithText(textContent string, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
+	trimmedText := strings.TrimSpace(textContent)
+	if trimmedText == "" {
+		return
+	}
+	subKey := *lastHeading
+	if subKey == "" {
+		subKey = "" // Explicitly set for clarity
+	}
+
+	found := false
+	for i, item := range *groupedItems {
+		if item["title"] == subKey {
+			(*groupedItems)[i]["text"] = append((*groupedItems)[i]["text"].([]string), trimmedText)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		*groupedItems = append(*groupedItems, map[string]interface{}{
+			"title": *lastHeading,
+			"pow":   *power,
+			"text":  []string{trimmedText},
+		})
+	}
+}
+
+func wikiProcessTextElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
+	textContent := wikiCollectTextFromNode(node)
+	wikiProcessTextElementWithText(textContent, lastHeading, power, groupedItems)
+}
+
 func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTitle string, identifier int) *OutputArticle {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
@@ -274,18 +316,29 @@ func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTit
 						return
 					}
 				}
-			case "li":
-				if wikiHasExternalLink(n) {
-					return
-				}
-				if n.Parent != nil && (n.Parent.Data == "ul" || n.Parent.Data == "ol") {
-					for _, attr := range n.Parent.Attr {
-						if attr.Key == "class" && strings.Contains(attr.Val, "references") {
-							return
+			case "ul", "ol":
+				var liTexts []string
+				for c := n.FirstChild; c != nil; c = c.NextSibling {
+					if c.Data == "li" {
+						if wikiHasExternalLink(c) {
+							continue
+						}
+						if c.Parent != nil {
+							for _, attr := range c.Parent.Attr {
+								if attr.Key == "class" && strings.Contains(attr.Val, "references") {
+									continue
+								}
+							}
+						}
+						textContent := wikiCollectTextFromNode(c)
+						if strings.TrimSpace(textContent) != "" {
+							liTexts = append(liTexts, "\u2022 "+textContent)
 						}
 					}
 				}
-				wikiProcessLiElement(n, &lastHeading, &power, &groupedItems)
+				if len(liTexts) > 0 {
+					wikiProcessTextElementWithText(strings.Join(liTexts, "\n"), &lastHeading, &power, &groupedItems)
+				}
 			case "p":
 				wikiProcessTextElement(n, &lastHeading, &power, &groupedItems)
 			case "h1", "h2", "h3", "h4", "h5", "h6":
@@ -336,46 +389,4 @@ func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTit
 		ID:     identifier,
 	}
 	return &output
-}
-
-func wikiProcessLiElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
-	textContent := wikiCollectTextFromNode(node)
-	if strings.TrimSpace(textContent) != "" {
-		// Add bullet point
-		textContent = "\u2022 " + textContent
-	}
-	wikiProcessTextElementWithText(textContent, lastHeading, power, groupedItems)
-}
-
-func wikiProcessTextElementWithText(textContent string, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
-	trimmedText := strings.TrimSpace(textContent)
-	if trimmedText == "" {
-		return
-	}
-	subKey := *lastHeading
-	if subKey == "" {
-		subKey = "" // Explicitly set for clarity
-	}
-
-	found := false
-	for i, item := range *groupedItems {
-		if item["title"] == subKey {
-			(*groupedItems)[i]["text"] = append((*groupedItems)[i]["text"].([]string), trimmedText)
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		*groupedItems = append(*groupedItems, map[string]interface{}{
-			"title": *lastHeading,
-			"pow":   *power,
-			"text":  []string{trimmedText},
-		})
-	}
-}
-
-func wikiProcessTextElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
-	textContent := wikiCollectTextFromNode(node)
-	wikiProcessTextElementWithText(textContent, lastHeading, power, groupedItems)
 }
