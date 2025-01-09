@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -628,8 +629,19 @@ func (h *DBHandler) ProcessEmbeddings() error {
 	log.Printf("Pending embeddings: %d", totalCount)
 
 	startTime := time.Now()
+	var problematicIDs []int
 	for {
-		rows, err := h.db.Query(`SELECT id, hash, text FROM hashes WHERE id NOT IN (select id from vectors_ann) LIMIT ?`, batchSize)
+		query := `SELECT id, hash, text FROM hashes WHERE id NOT IN (select id from vectors_ann)`
+		if len(problematicIDs) > 0 {
+			idList := make([]string, 0, len(problematicIDs))
+			for _, id := range problematicIDs {
+				idList = append(idList, fmt.Sprintf("%d", id))
+			}
+			query += " AND id NOT IN (" + strings.Join(idList, ", ") + ")"
+		}
+		query += " LIMIT ?"
+
+		rows, err := h.db.Query(query, batchSize)
 		if err != nil {
 			return fmt.Errorf("error querying hashes: %w", err)
 		}
@@ -661,15 +673,18 @@ func (h *DBHandler) ProcessEmbeddings() error {
 			embedding, err := aiEmbeddings(hashData.Text)
 			if err != nil {
 				log.Printf("Embedding generation error for hash %s: %v", hashData.Hash, err)
+				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
 			}
 
 			if _, err := h.db.Exec("INSERT OR REPLACE INTO vectors (rowid, embedding) VALUES (?, ?)", hashData.ID, aiFloat32ToBytes(embedding)); err != nil {
-				log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
+				log.Printf("Error inserting vectors for hash %s: %v", hashData.Hash, err)
+				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
 			}
 			if _, err := h.db.Exec("INSERT OR REPLACE INTO vectors_ann (rowid, embedding) VALUES (?, ?)", hashData.ID, aiQuantizeBinary(embedding)); err != nil {
-				log.Printf("Error inserting embedding for hash %s: %v", hashData.Hash, err)
+				log.Printf("Error inserting vectors_ann for hash %s: %v", hashData.Hash, err)
+				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
 			}
 		}
