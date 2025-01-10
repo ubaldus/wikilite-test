@@ -17,18 +17,16 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Set up CGO environment
-        run: |
-          export CC=clang
-          export CGO_ENABLED=1
-          export GOOS=darwin
-          export GOARCH=amd64
-
       - name: Build wikilite for MacOS AMD64
-        run: go build -tags=fts5 -ldflags="-s -w" -o wikilite-macos-amd64 .
+        run: |
+          CC=clang \
+          CGO_ENABLED=1 \
+          GOOS=darwin \
+          GOARCH=amd64 \
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite .
 
       - name: Compress artifact
-        run: tar -czvf wikilite-macos-amd64.tar.gz wikilite-macos-amd64
+        run: tar -czvf wikilite-macos-amd64.tar.gz wikilite
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -52,18 +50,16 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Set up CGO environment
-        run: |
-          export CC=clang
-          export CGO_ENABLED=1
-          export GOOS=darwin
-          export GOARCH=arm64
-
       - name: Build wikilite for MacOS ARM64
-        run: go build -tags=fts5 -ldflags="-s -w" -o wikilite-macos-arm64 .
+        run: |
+          CC=clang \
+          CGO_ENABLED=1 \
+          GOOS=darwin \
+          GOARCH=arm64 \
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite .
 
       - name: Compress artifact
-        run: tar -czvf wikilite-macos-arm64.tar.gz wikilite-macos-arm64
+        run: tar -czvf wikilite-macos-arm64.tar.gz wikilite
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -90,18 +86,16 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y gcc
 
-      - name: Set up CGO environment
-        run: |
-          export CC=gcc
-          export CGO_ENABLED=1
-          export GOOS=linux
-          export GOARCH=amd64
-
       - name: Build wikilite for Linux AMD64
-        run: go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite-linux-amd64 .
+        run: |
+          CC=gcc \
+          CGO_ENABLED=1 \
+          GOOS=linux \
+          GOARCH=amd64 \
+          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
 
       - name: Compress artifact
-        run: tar -czvf wikilite-linux-amd64.tar.gz wikilite-linux-amd64
+        run: tar -czvf wikilite-linux-amd64.tar.gz wikilite
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -128,18 +122,16 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
-      - name: Set up CGO environment
-        run: |
-          export CC=aarch64-linux-gnu-gcc
-          export CGO_ENABLED=1
-          export GOOS=linux
-          export GOARCH=arm64
-
       - name: Build wikilite for Linux ARM64
-        run: go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite-linux-arm64 .
+        run: |
+          CC=aarch64-linux-gnu-gcc \
+          CGO_ENABLED=1 \
+          GOOS=linux \
+          GOARCH=arm64 \
+          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
 
       - name: Compress artifact
-        run: tar -czvf wikilite-linux-arm64.tar.gz wikilite-linux-arm64
+        run: tar -czvf wikilite-linux-arm64.tar.gz wikilite
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -166,18 +158,15 @@ jobs:
       - name: Install dependencies
         run: choco install mingw -y
 
-      - name: Set up CGO environment
-        run: |
-          $env:CC = "x86_64-w64-mingw32-gcc"
-          $env:CGO_ENABLED = "1"
-          $env:GOOS = "windows"
-          $env:GOARCH = "amd64"
-
       - name: Build wikilite for Windows AMD64
-        run: go build -tags=fts5 -ldflags="-s -w" -o wikilite-windows-amd64.exe .
+        run: |
+          $env:CGO_ENABLED = "1"; 
+          $env:GOOS = "windows"; 
+          $env:GOARCH = "amd64"; 
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe .
 
       - name: Compress artifact
-        run: Compress-Archive -Path wikilite-windows-amd64.exe -DestinationPath wikilite-windows-amd64.zip
+        run: Compress-Archive -Path wikilite.exe -DestinationPath wikilite-windows-amd64.zip
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -191,7 +180,7 @@ jobs:
 
   build-windows-arm64:
     name: Build for Windows ARM64
-    runs-on: ubuntu-latest
+    runs-on: windows-arm64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -201,23 +190,15 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Install dependencies for Windows ARM64 cross-compilation
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64
-
-      - name: Set up CGO environment for Windows ARM64
-        run: |
-          export CC=aarch64-w64-mingw32-gcc
-          export CGO_ENABLED=1
-          export GOOS=windows
-          export GOARCH=arm64
-
       - name: Build wikilite for Windows ARM64
-        run: go build -tags=fts5 -ldflags="-s -w" -o wikilite-windows-arm64.exe .
+        run: |
+          $env:CGO_ENABLED = "1"; 
+          $env:GOOS = "windows"; 
+          $env:GOARCH = "arm64"; 
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe .
 
       - name: Compress artifact
-        run: zip wikilite-windows-arm64.zip wikilite-windows-arm64.exe
+        run: Compress-Archive -Path wikilite.exe -DestinationPath wikilite-windows-arm64.zip
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
