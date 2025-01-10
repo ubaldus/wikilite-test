@@ -144,6 +144,7 @@ func (s *WebServer) handleGenericAPISearch(w http.ResponseWriter, r *http.Reques
 			}
 		}
 	}
+	log.Printf("API %s search %s: %s", r.Method, searchType, query)
 
 	if query == "" {
 		s.sendAPIError(w, "Query parameter is required", http.StatusBadRequest)
@@ -207,6 +208,7 @@ func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	log.Printf("API %s article: %d", r.Method, id)
 
 	article, err := db.GetArticle(id)
 	if err != nil {

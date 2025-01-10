@@ -1,4 +1,4 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -100,11 +100,9 @@ func searchOptimize(results []SearchResult) []SearchResult {
 
 	for _, result := range results {
 		if !seen[result.ArticleID] {
-			// First occurrence, add it to accumulated results and mark as seen
 			seen[result.ArticleID] = true
 			accumulatedResults = append(accumulatedResults, result)
 		} else {
-			// Duplicate article, find the first entry and accumulate the power value
 			for i := range accumulatedResults {
 				if accumulatedResults[i].ArticleID == result.ArticleID {
 					accumulatedResults[i].Power += result.Power
