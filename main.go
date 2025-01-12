@@ -10,50 +10,43 @@ import (
 	"os"
 )
 
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 type Config struct {
-	ai               bool
-	aiApiKey         string
-	aiApiUrl         string
-	aiEmbeddingModel string
-	aiLlmModel       string
-	cli              bool
-	dbOptimize       bool
-	dbPath           string
-	dbSyncEmbeddings bool
-	dbSyncFTS        bool
-	language         string
-	limit            int
-	log              bool
-	logFile          string
-	web              bool
-	webHost          string
-	webPort          int
-	webTlsPrivate    string
-	webTlsPublic     string
-	wikiImport       string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
+	aiApiKey      string
+	aiApiUrl      string
+	aiModel       string
+	aiSync        bool
+	cli           bool
+	dbPath        string
+	language      string
+	limit         int
+	log           bool
+	logFile       string
+	web           bool
+	webHost       string
+	webPort       int
+	webTlsPrivate string
+	webTlsPublic  string
+	wikiImport    string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
 }
 
 var (
+	ai      bool
 	db      *DBHandler
 	options *Config
 )
 
 func parseConfig() (*Config, error) {
 	options = &Config{}
-	flag.BoolVar(&options.ai, "ai", false, "Enable AI")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
-	flag.StringVar(&options.aiApiUrl, "ai-api-url", "http://localhost:11434/v1/", "AI API base url")
-	flag.StringVar(&options.aiEmbeddingModel, "ai-embedding-model", "all-minilm", "AI embedding model")
-	flag.StringVar(&options.aiLlmModel, "ai-llm-model", "gemma2", "AI LLM model")
+	flag.StringVar(&options.aiApiUrl, "ai-api-url", "", "AI API base url")
+	flag.StringVar(&options.aiModel, "ai-model", "all-minilm", "AI embedding model")
+	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI generate embeddings")
 
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
 
 	flag.StringVar(&options.dbPath, "db", "wikilite.db", "SQLite database path")
-	flag.BoolVar(&options.dbOptimize, "db-optimize", false, "Optimize database")
-	flag.BoolVar(&options.dbSyncEmbeddings, "db-sync-embeddings", false, "Sync database embeddings")
-	flag.BoolVar(&options.dbSyncFTS, "db-sync-fts", false, "Sync database full text search")
 
 	flag.StringVar(&options.language, "language", "en", "Language")
 	flag.IntVar(&options.limit, "limit", 5, "Maximum number of search results")
@@ -85,7 +78,7 @@ func parseConfig() (*Config, error) {
 func main() {
 	options, err := parseConfig()
 	if err != nil {
-		log.Fatalf("Error parsing command line: %v\n\n", err)
+		log.Fatalf("Error parsing command line: %v\n", err)
 	}
 
 	if flag.NFlag() == 0 {
@@ -111,25 +104,24 @@ func main() {
 	}
 	defer db.Close()
 
-	if options.dbOptimize || options.dbSyncFTS || options.dbSyncEmbeddings || options.wikiImport != "" {
+	if err := aiInit(); err != nil {
+		log.Printf("AI initialization error: %v\n", err)
+	} else {
+		ai = true
+	}
+
+	if options.aiSync || options.wikiImport != "" {
 		if err := db.PragmaImportMode(); err != nil {
 			log.Fatalf("Error setting database in import mode: %v\n", err)
 		}
+
 		if options.wikiImport != "" {
 			if err = WikiImport(options.wikiImport); err != nil {
 				log.Fatalf("Error processing import: %v\n", err)
 			}
-			options.dbOptimize = true
-			options.dbSyncFTS = true
-		}
-
-		if options.dbOptimize {
 			if err := db.Optimize(); err != nil {
 				log.Fatalf("Error during database optimization: %v\n", err)
 			}
-		}
-
-		if options.dbSyncFTS {
 			if err := db.ProcessTitles(); err != nil {
 				log.Fatalf("Error processing FTS titles: %v\n", err)
 			}
@@ -138,7 +130,7 @@ func main() {
 			}
 		}
 
-		if options.dbSyncEmbeddings {
+		if ai && options.aiSync {
 			if err := db.ProcessEmbeddings(); err != nil {
 				log.Fatalf("Error processing embeddings: %v\n", err)
 			}

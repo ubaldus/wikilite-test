@@ -1,11 +1,10 @@
 module wikilite
 
-go 1.22.5
-
-toolchain go1.22.10
+go 1.23.4
 
 require (
 	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/ollama/ollama v0.5.5
 	github.com/openai/openai-go v0.1.0-alpha.39
 	golang.org/x/net v0.33.0
 )

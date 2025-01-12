@@ -1,5 +1,7 @@
 github.com/mattn/go-sqlite3 v1.14.24 h1:tpSp2G2KyMnnQu99ngJ47EIkWVmliIizyZBfPrBWDRM=
 github.com/mattn/go-sqlite3 v1.14.24/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
+github.com/ollama/ollama v0.5.5 h1:/L4qt66ESqlT4cnwaX0SKmg+JkVCMEHtoXH7MpADAq8=
+github.com/ollama/ollama v0.5.5/go.mod h1:x7Jfo4Kgmp98pe5PwtZQr/9vCt9HM52PaHZ38MzdA/A=
 github.com/openai/openai-go v0.1.0-alpha.39 h1:FvoNWy7BPhA0TjGOK5huRGU5sAUEx2jeubLXz34K9LE=
 github.com/openai/openai-go v0.1.0-alpha.39/go.mod h1:3SdE6BffOX9HPEQv8IL/fi3LYZ5TUpRYaqGQZbyk11A=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=

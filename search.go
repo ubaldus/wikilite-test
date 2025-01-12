@@ -32,7 +32,7 @@ func Search(query string, limit int) ([]SearchResult, error) {
 		results = append(results, content)
 	}
 
-	if options.ai {
+	if ai {
 		log.Println("Vectors searching", query)
 		vectors, err := db.SearchVectors(query, limit)
 		if err != nil {

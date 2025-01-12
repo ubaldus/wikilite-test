@@ -8,7 +8,9 @@ import (
 	"crypto/md5"
 	"embed"
 	"encoding/hex"
+	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -82,4 +84,12 @@ func TextDeflate(text string) []byte {
 	}
 
 	return out.Bytes()
+}
+
+func MuteStderr() (*os.File, error) {
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mute stderr: %v", err)
+	}
+	return devNull, nil
 }
