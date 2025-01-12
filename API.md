@@ -240,14 +240,11 @@ curl 'http://localhost:35248/api/article?id=123'
 ## Configuration Requirements
 
 ### Vector Search
-To use vector search:
-1. Start the server with AI enabled: `--ai`
-2. Configure AI host/port if not using defaults
-
-Example:
-```bash
-./wikilite --ai --web
-```
+To use vector search, you have two options:
+1. **Remote Server**:  
+  You can pass the remote server URL using the `--ai-api-url` flag. This allows the system to connect to a remote server where the vector search functionality is hosted.
+2. **Local Model**:
+  Alternatively, you can use a local GGUF model file. The model file must have the same name as the AI model (`--ai-model`) with `.gguf` extension. The file should be located in the same directory as the executable.
 
 ## Notes
 - All search endpoints support both GET and POST methods
