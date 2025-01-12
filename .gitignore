@@ -2,3 +2,4 @@ wikilite
 wikilite.exe
 wikilite.db*
 dist/
+*.gguf

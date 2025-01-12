@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.3.0"
+const Version = "0.4.0"
 
 type Config struct {
 	aiApiKey      string
@@ -23,6 +23,7 @@ type Config struct {
 	limit         int
 	log           bool
 	logFile       string
+	setup         bool
 	web           bool
 	webHost       string
 	webPort       int
@@ -52,6 +53,7 @@ func parseConfig() (*Config, error) {
 	flag.IntVar(&options.limit, "limit", 5, "Maximum number of search results")
 	flag.BoolVar(&options.log, "log", false, "Enable logging")
 	flag.StringVar(&options.logFile, "log-file", "", "Log file path")
+	flag.BoolVar(&options.setup, "setup", false, "Download a ready made database and embeddings model")
 
 	flag.BoolVar(&options.web, "web", false, "Enable web interface")
 	flag.StringVar(&options.webHost, "web-host", "localhost", "Web server host")
@@ -84,6 +86,10 @@ func main() {
 	if flag.NFlag() == 0 {
 		flag.Usage()
 		os.Exit(0)
+	}
+
+	if options.setup {
+		Setup()
 	}
 
 	if options.log || options.logFile != "" {
