@@ -14,7 +14,7 @@ Wikilite is a tool that allows you to create a local SQLite database of Wikipedi
 
 1.  **Clone the repository**: `git clone https://github.com/eja/wikilite.git`
 2.  **Build the Wikilite binary**: `make`
-3.  **Import Wikipedia data**:  `./wikilite --import <url> --db <file.db>`
+3.  **Import Wikipedia data**:  `./wikilite --wiki-import <url> --db <file.db>`
 
 ### Web Interface
 
@@ -51,3 +51,4 @@ Pre-built databases for several languages are also available on [Hugging Face](h
 
 *   **Wikipedia**: For providing the valuable data that powers Wikilite.
 *   **SQLite**: For providing the robust database engine that enables fast and efficient local data storage.
+*   **Ollama**: For enabling the internal generation of embeddings, enhancing the semantic search capabilities of Wikilite.
