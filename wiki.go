@@ -26,12 +26,29 @@ type WikiFileReader interface {
 	Close() error
 }
 
-func WikiImport(path string) error {
+func WikiImport(path string) (err error) {
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		return wikiDownloadAndProcessFile(path)
+		err = wikiRemoteImport(path)
 	} else {
-		return wikiProcessLocalFile(path)
+		err = wikiLocalImport(path)
 	}
+	if err != nil {
+		return
+	}
+	if err = db.SetupPut("language", options.language); err != nil {
+		return
+	}
+	if err = db.Optimize(); err != nil {
+		return
+	}
+	if err = db.ProcessTitles(); err != nil {
+		return
+	}
+	if err = db.ProcessContents(); err != nil {
+		return
+	}
+
+	return
 }
 
 func (cc WikiCombinedCloser) Close() error {
@@ -145,7 +162,7 @@ func wikiProcessTarArchive(tarReader *tar.Reader) error {
 	return nil
 }
 
-func wikiDownloadAndProcessFile(url string) error {
+func wikiRemoteImport(url string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("error downloading file: %v", err)
@@ -166,7 +183,7 @@ func wikiDownloadAndProcessFile(url string) error {
 	return wikiProcessTarArchive(tarReader)
 }
 
-func wikiProcessLocalFile(filePath string) error {
+func wikiLocalImport(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("error opening file: %v", err)

@@ -150,7 +150,7 @@ func Setup() {
 			return
 		}
 
-		fmt.Println("Downloading corresponding gguf model:", ggufFile)
+		fmt.Println("Downloading gguf model:", ggufFile)
 		err = setupDownloadFile(baseURL+ggufFile, ggufFile)
 		if err != nil {
 			fmt.Println("Error downloading .gguf file:", err)

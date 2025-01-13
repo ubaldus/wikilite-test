@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.4.0"
+const Version = "0.4.1"
 
 type Config struct {
 	aiApiKey      string
@@ -124,15 +124,6 @@ func main() {
 		if options.wikiImport != "" {
 			if err = WikiImport(options.wikiImport); err != nil {
 				log.Fatalf("Error processing import: %v\n", err)
-			}
-			if err := db.Optimize(); err != nil {
-				log.Fatalf("Error during database optimization: %v\n", err)
-			}
-			if err := db.ProcessTitles(); err != nil {
-				log.Fatalf("Error processing FTS titles: %v\n", err)
-			}
-			if err := db.ProcessContents(); err != nil {
-				log.Fatalf("Error processing FTS contents: %v\n", err)
 			}
 		}
 

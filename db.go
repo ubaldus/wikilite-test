@@ -23,6 +23,11 @@ func (h *DBHandler) initializeDB() error {
 	}
 
 	queries := []string{
+		`CREATE TABLE IF NOT EXISTS setup (
+			key TEXT PRIMARY KEY,
+			value TEXT DEFAULT ''
+		)`,
+
 		`CREATE TABLE IF NOT EXISTS articles (
 			id INTEGER PRIMARY KEY,
 			title TEXT NOT NULL,
@@ -98,6 +103,14 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 	if err := handler.initializeDB(); err != nil {
 		db.Close()
 		return nil, err
+	}
+
+	if language, err := handler.SetupGet("language"); err == nil && language != "" {
+		options.language = language
+	}
+
+	if model, err := handler.SetupGet("model"); err == nil && model != "" {
+		options.aiModel = model
 	}
 
 	return handler, nil
@@ -616,12 +629,16 @@ func (h *DBHandler) ProcessContents() error {
 	return nil
 }
 
-func (h *DBHandler) ProcessEmbeddings() error {
+func (h *DBHandler) ProcessEmbeddings() (err error) {
 	batchSize := 1000
 	totalCount := 0
 	offset := 0
 
-	err := h.db.QueryRow("SELECT COUNT(*) FROM hashes WHERE id NOT IN (select id from vectors_ann)").Scan(&totalCount)
+	if err = db.SetupPut("model", options.aiModel); err != nil {
+		return
+	}
+
+	err = h.db.QueryRow("SELECT COUNT(*) FROM hashes WHERE id NOT IN (select id from vectors_ann)").Scan(&totalCount)
 	if err != nil {
 		return fmt.Errorf("error getting total count of hashes: %w", err)
 	}
@@ -757,4 +774,14 @@ func (h *DBHandler) Optimize() error {
 	}
 
 	return nil
+}
+
+func (h *DBHandler) SetupPut(key, value string) (err error) {
+	_, err = h.db.Exec("INSERT OR REPLACE INTO setup (key, value) VALUES (?, ?)", key, value)
+	return
+}
+
+func (h *DBHandler) SetupGet(key string) (value string, err error) {
+	err = h.db.QueryRow("SELECT value FROM setup WHERE key = ? LIMIT 1", key).Scan(&value)
+	return
 }
