@@ -78,12 +78,15 @@ func (h *DBHandler) initializeDB() error {
 			id INTEGER PRIMARY KEY,
 			chunk BLOB
 		)`,
+
 		`CREATE TABLE IF NOT EXISTS vectors_ann_index (
 			id INTEGER PRIMARY KEY,
 			vectors_id INTEGER NOT NULL,
 			chunk_id INTEGER NOT NULL,
 			chunk_position INTEGER NOT NULL
 		)`,
+
+		`CREATE INDEX IF NOT EXISTS vectors_ann_index_chunk_id_position ON vectors_ann_index (chunk_id, chunk_position)`,
 	}
 
 	for _, query := range queries {
