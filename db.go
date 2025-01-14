@@ -74,9 +74,15 @@ func (h *DBHandler) initializeDB() error {
 			embedding BLOB
 		)`,
 
-		`CREATE TABLE IF NOT EXISTS vectors_ann (
+		`CREATE TABLE IF NOT EXISTS vectors_ann_chunks (
 			id INTEGER PRIMARY KEY,
-			embedding BLOB
+			chunk BLOB
+		)`,
+		`CREATE TABLE IF NOT EXISTS vectors_ann_index (
+			id INTEGER PRIMARY KEY,
+			vectors_id INTEGER NOT NULL,
+			chunk_id INTEGER NOT NULL,
+			chunk_position INTEGER NOT NULL
 		)`,
 	}
 
@@ -463,44 +469,57 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 
 	quantizedQuery := aiQuantizeBinary(queryEmbedding)
 
-	rows, err := h.db.Query("SELECT id, embedding FROM vectors_ann")
+	rows, err := h.db.Query("SELECT id, chunk FROM vectors_ann_chunks")
 	if err != nil {
 		return nil, fmt.Errorf("error querying vectors_ann: %w", err)
 	}
 	defer rows.Close()
 
 	type VectorDistance struct {
-		ID       int64
-		Distance float32
+		ID            int64
+		ChunkRowID    int64
+		ChunkPosition int
+		Distance      float32
 	}
 
 	topANNResults := make([]VectorDistance, 0, limit*8)
 	for rows.Next() {
-		var id int64
-		var embeddingBlob []byte
-		if err := rows.Scan(&id, &embeddingBlob); err != nil {
-			return nil, fmt.Errorf("error scanning vector_ann row: %w", err)
+		var chunkRowID int64
+		var chunkBlob []byte
+		chunkSize := len(quantizedQuery)
+		if err := rows.Scan(&chunkRowID, &chunkBlob); err != nil {
+			return nil, fmt.Errorf("error scanning vector_ann_chunks row: %w", err)
 		}
-
-		distance, err := aiHammingDistance(quantizedQuery, embeddingBlob)
-		if err != nil {
-			return nil, fmt.Errorf("error calculating Hamming distance: %w", err)
-		}
-
-		if len(topANNResults) < limit*8 {
-			topANNResults = append(topANNResults, VectorDistance{ID: id, Distance: distance})
-		} else {
-			if distance < topANNResults[limit*8-1].Distance {
-				topANNResults[limit*8-1] = VectorDistance{ID: id, Distance: distance}
+		for position := 0; position < len(chunkBlob); position += chunkSize {
+			var result VectorDistance
+			embeddingBlob := chunkBlob[position:(position + chunkSize)]
+			distance, err := aiHammingDistance(quantizedQuery, embeddingBlob)
+			if err != nil {
+				return nil, fmt.Errorf("error calculating Hamming distance: %w", err)
 			}
+			result.ChunkRowID = chunkRowID
+			result.ChunkPosition = position / chunkSize
+			result.Distance = distance
+
+			if len(topANNResults) < limit*8 {
+				topANNResults = append(topANNResults, result)
+			} else {
+				if distance < topANNResults[limit*8-1].Distance {
+					topANNResults[limit*8-1] = result
+				}
+			}
+			sort.Slice(topANNResults, func(i, j int) bool {
+				return topANNResults[i].Distance < topANNResults[j].Distance
+			})
 		}
-		sort.Slice(topANNResults, func(i, j int) bool {
-			return topANNResults[i].Distance < topANNResults[j].Distance
-		})
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating vector_ann rows: %w", err)
+	for k, v := range topANNResults {
+		var vectors_id int64
+		if err := h.db.QueryRow("SELECT vectors_id FROM vectors_ann_index WHERE chunk_id = ? AND chunk_position = ? LIMIT 1", v.ChunkRowID, v.ChunkPosition).Scan(&vectors_id); err != nil {
+			return nil, err
+		}
+		topANNResults[k].ID = vectors_id
 	}
 
 	topResults := make([]VectorDistance, 0, limit)
@@ -638,7 +657,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		return
 	}
 
-	err = h.db.QueryRow("SELECT COUNT(*) FROM hashes WHERE id NOT IN (select id from vectors_ann)").Scan(&totalCount)
+	err = h.db.QueryRow("SELECT COUNT(*) FROM hashes WHERE id NOT IN (select vectors_id from vectors_ann_index)").Scan(&totalCount)
 	if err != nil {
 		return fmt.Errorf("error getting total count of hashes: %w", err)
 	}
@@ -648,7 +667,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 	startTime := time.Now()
 	var problematicIDs []int
 	for {
-		query := `SELECT id, hash, text FROM hashes WHERE id NOT IN (select id from vectors_ann)`
+		query := `SELECT id, hash, text FROM hashes WHERE id NOT IN (select vectors_id from vectors_ann_index)`
 		if len(problematicIDs) > 0 {
 			idList := make([]string, 0, len(problematicIDs))
 			for _, id := range problematicIDs {
@@ -686,6 +705,14 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 			break
 		}
 
+		var ann_chunk_data []byte
+		var ann_chunk_position int
+		var ann_chunk_rowid int
+		if err := h.db.QueryRow("SELECT id FROM vectors_ann_chunks ORDER BY id DESC LIMIT 1").Scan(&ann_chunk_rowid); err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		ann_chunk_rowid++
+
 		for _, hashData := range hashesData {
 			embedding, err := aiEmbeddings(hashData.Text)
 			if err != nil {
@@ -699,11 +726,16 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
 			}
-			if _, err := h.db.Exec("INSERT OR REPLACE INTO vectors_ann (rowid, embedding) VALUES (?, ?)", hashData.ID, aiQuantizeBinary(embedding)); err != nil {
+			if _, err := h.db.Exec("INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)", hashData.ID, ann_chunk_rowid, ann_chunk_position); err != nil {
 				log.Printf("Error inserting vectors_ann for hash %s: %v", hashData.Hash, err)
 				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
 			}
+			ann_chunk_data = append(ann_chunk_data, aiQuantizeBinary(embedding)...)
+			ann_chunk_position++
+		}
+		if _, err := h.db.Exec("INSERT INTO vectors_ann_chunks (id, chunk) VALUES (?, ?)", ann_chunk_rowid, ann_chunk_data); err != nil {
+			return err
 		}
 		processedCount := offset + len(hashesData)
 		progress := float64(processedCount) / float64(totalCount) * 100
