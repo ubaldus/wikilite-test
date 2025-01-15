@@ -61,7 +61,7 @@ func SearchCli() error {
 		queryIdx, err := strconv.Atoi(query)
 		if err == nil {
 			if articleID, exists := articles[queryIdx]; exists {
-				article, err := db.GetArticle(articleID)
+				article, err := db.ArticleGet(articleID)
 				if err != nil {
 					log.Fatal("CLI error: ", err)
 				}

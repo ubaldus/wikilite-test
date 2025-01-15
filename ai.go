@@ -25,7 +25,7 @@ var aiLocal struct {
 
 func aiInit() error {
 	if options.aiApiUrl == "" {
-		aiModelPath := options.aiModelFile
+		aiModelPath := options.aiModelPath
 		if aiModelPath == "" {
 			aiModelPath = options.aiModel + ".gguf"
 		}
