@@ -91,7 +91,7 @@ func (s *WebServer) handleHTMLArticle(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		results, err := db.GetArticle(id)
+		results, err := db.ArticleGet(id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -210,7 +210,7 @@ func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("API %s article: %d", r.Method, id)
 
-	article, err := db.GetArticle(id)
+	article, err := db.ArticleGet(id)
 	if err != nil {
 		s.sendAPIError(w, fmt.Sprintf("Error retrieving article: %v", err), http.StatusInternalServerError)
 		return

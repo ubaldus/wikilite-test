@@ -9,7 +9,6 @@ import (
 	"math"
 	"math/bits"
 	"os"
-	"path/filepath"
 	"runtime"
 
 	"github.com/ollama/ollama/llama"
@@ -26,12 +25,10 @@ var aiLocal struct {
 
 func aiInit() error {
 	if options.aiApiUrl == "" {
-		exePath, err := os.Executable()
-		if err != nil {
-			return fmt.Errorf("AI error getting executable path: %v", err)
+		aiModelPath := options.aiModelPath
+		if aiModelPath == "" {
+			aiModelPath = options.aiModel + ".gguf"
 		}
-		exeDir := filepath.Dir(exePath)
-		aiModelPath := filepath.Join(exeDir, options.aiModel+".gguf")
 		if _, err := os.Stat(aiModelPath); err != nil {
 			return err
 		} else {

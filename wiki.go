@@ -218,7 +218,7 @@ func wikiProcessJSONLFile(reader io.Reader) error {
 		output := wikiExtractContentFromHTML(art.ArticleBody.HTML, art.MainEntity.Identifier, art.Name, art.Identifier)
 
 		if output != nil && db != nil {
-			if err := db.SaveArticle(*output); err != nil {
+			if err := db.ArticlePut(*output); err != nil {
 				log.Printf("Error saving to database: %v\n", err)
 				continue
 			}
