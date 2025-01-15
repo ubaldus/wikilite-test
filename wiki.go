@@ -244,7 +244,7 @@ func wikiHasExternalLink(node *html.Node) bool {
 	return false
 }
 
-func wikiCollectTextFromNode(node *html.Node) string {
+func wikiCollectTextFromNode(node *html.Node, depth int) string {
 	var textContent string
 
 	if node.Type == html.TextNode {
@@ -259,21 +259,16 @@ func wikiCollectTextFromNode(node *html.Node) string {
 					return textContent
 				}
 			}
+		case "li":
+			textContent = strings.Repeat("\t", depth) + "\u2022 "
+			depth++
+
 		}
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			textContent += wikiCollectTextFromNode(c)
+			textContent += wikiCollectTextFromNode(c, depth)
 		}
 	}
 	return textContent
-}
-
-func wikiProcessLiElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
-	textContent := wikiCollectTextFromNode(node)
-	if strings.TrimSpace(textContent) != "" {
-		// Add bullet point
-		textContent = "\u2022 " + textContent
-	}
-	wikiProcessTextElementWithText(textContent, lastHeading, power, groupedItems)
 }
 
 func wikiProcessTextElementWithText(textContent string, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
@@ -305,7 +300,7 @@ func wikiProcessTextElementWithText(textContent string, lastHeading *string, pow
 }
 
 func wikiProcessTextElement(node *html.Node, lastHeading *string, power *int, groupedItems *[]map[string]interface{}) {
-	textContent := wikiCollectTextFromNode(node)
+	textContent := wikiCollectTextFromNode(node, 0)
 	wikiProcessTextElementWithText(textContent, lastHeading, power, groupedItems)
 }
 
@@ -347,19 +342,20 @@ func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTit
 								}
 							}
 						}
-						textContent := wikiCollectTextFromNode(c)
+						textContent := wikiCollectTextFromNode(c, 0)
 						if strings.TrimSpace(textContent) != "" {
-							liTexts = append(liTexts, "\u2022 "+textContent)
+							liTexts = append(liTexts, "\n"+textContent)
 						}
+						c.FirstChild = nil
 					}
 				}
 				if len(liTexts) > 0 {
-					wikiProcessTextElementWithText(strings.Join(liTexts, "\n"), &lastHeading, &power, &groupedItems)
+					wikiProcessTextElementWithText(strings.Join(liTexts, ""), &lastHeading, &power, &groupedItems)
 				}
 			case "p":
 				wikiProcessTextElement(n, &lastHeading, &power, &groupedItems)
 			case "h1", "h2", "h3", "h4", "h5", "h6":
-				textContent := wikiCollectTextFromNode(n)
+				textContent := wikiCollectTextFromNode(n, 0)
 				if strings.TrimSpace(textContent) != "" {
 					lastHeading = textContent
 					power = extractNumberFromString(n.Data)
