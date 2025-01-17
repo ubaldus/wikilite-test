@@ -93,3 +93,12 @@ func MuteStderr() (*os.File, error) {
 	}
 	return devNull, nil
 }
+
+type byteCounter struct {
+	total *int64
+}
+
+func (bc *byteCounter) Write(p []byte) (int, error) {
+	*bc.total += int64(len(p))
+	return len(p), nil
+}

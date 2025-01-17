@@ -16,16 +16,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-type WikiCombinedCloser struct {
-	gzipCloser io.Closer
-	respCloser io.Closer
-}
-
-type WikiFileReader interface {
-	Read([]byte) (int, error)
-	Close() error
-}
-
 func WikiImport(path string) (err error) {
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		err = wikiRemoteImport(path)
@@ -51,115 +41,18 @@ func WikiImport(path string) (err error) {
 	return
 }
 
-func (cc WikiCombinedCloser) Close() error {
-	if err := cc.gzipCloser.Close(); err != nil {
-		return err
-	}
-	return cc.respCloser.Close()
-}
+func wikiImportFromReader(reader io.Reader, totalSize int64) error {
+	bytesRead := int64(0)
+	teeReader := io.TeeReader(reader, &byteCounter{&bytesRead})
 
-func wikiDownloadAndExtractFile(url string) (io.ReadCloser, error) {
-	resp, err := http.Get(url)
+	gzipReader, err := gzip.NewReader(teeReader)
 	if err != nil {
-		return nil, fmt.Errorf("error downloading file: %v", err)
+		return fmt.Errorf("error creating gzip reader: %v", err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP error: %s", resp.Status)
-	}
-
-	gzipReader, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		resp.Body.Close()
-		return nil, fmt.Errorf("error creating gzip reader: %v", err)
-	}
+	defer gzipReader.Close()
 
 	tarReader := tar.NewReader(gzipReader)
-
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break // End of archive
-		}
-		if err != nil {
-			return nil, fmt.Errorf("error reading tar file: %v", err)
-		}
-
-		if header.Typeflag == tar.TypeReg {
-			return struct {
-				io.Reader
-				io.Closer
-			}{
-				Reader: tarReader,
-				Closer: WikiCombinedCloser{
-					gzipCloser: gzipReader,
-					respCloser: resp.Body,
-				},
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no regular file found in tar archive")
-}
-
-func wikiOpenAndExtractLocalFile(filePath string) (io.ReadCloser, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("error opening file: %v", err)
-	}
-
-	gzipReader, err := gzip.NewReader(file)
-	if err != nil {
-		file.Close()
-		return nil, fmt.Errorf("error creating gzip reader: %v", err)
-	}
-
-	tarReader := tar.NewReader(gzipReader)
-
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break // End of archive
-		}
-		if err != nil {
-			return nil, fmt.Errorf("error reading tar file: %v", err)
-		}
-
-		if header.Typeflag == tar.TypeReg {
-			return struct {
-				io.Reader
-				io.Closer
-			}{
-				Reader: tarReader,
-				Closer: WikiCombinedCloser{
-					gzipCloser: gzipReader,
-					respCloser: file,
-				},
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no regular file found in tar archive")
-}
-
-func wikiProcessTarArchive(tarReader *tar.Reader) error {
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("error reading tar file: %v", err)
-		}
-
-		if header.Typeflag == tar.TypeReg {
-			log.Printf("Processing file: %s\n", header.Name)
-			if err := wikiProcessJSONLFile(tarReader); err != nil {
-				log.Printf("Error processing file %s: %v\n", header.Name, err)
-				continue // Continue with next file even if this one fails
-			}
-		}
-	}
-	return nil
+	return wikiProcessTarArchive(tarReader, totalSize, &bytesRead)
 }
 
 func wikiRemoteImport(url string) error {
@@ -173,14 +66,8 @@ func wikiRemoteImport(url string) error {
 		return fmt.Errorf("HTTP error: %s", resp.Status)
 	}
 
-	gzipReader, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return fmt.Errorf("error creating gzip reader: %v", err)
-	}
-	defer gzipReader.Close()
-
-	tarReader := tar.NewReader(gzipReader)
-	return wikiProcessTarArchive(tarReader)
+	totalSize := resp.ContentLength
+	return wikiImportFromReader(resp.Body, totalSize)
 }
 
 func wikiLocalImport(filePath string) error {
@@ -190,14 +77,40 @@ func wikiLocalImport(filePath string) error {
 	}
 	defer file.Close()
 
-	gzipReader, err := gzip.NewReader(file)
+	fileInfo, err := file.Stat()
 	if err != nil {
-		return fmt.Errorf("error creating gzip reader: %v", err)
+		return fmt.Errorf("error getting file info: %v", err)
 	}
-	defer gzipReader.Close()
+	totalSize := fileInfo.Size()
 
-	tarReader := tar.NewReader(gzipReader)
-	return wikiProcessTarArchive(tarReader)
+	return wikiImportFromReader(file, totalSize)
+}
+
+func wikiProcessTarArchive(tarReader *tar.Reader, totalSize int64, bytesRead *int64) error {
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("error reading tar file: %v", err)
+		}
+
+		if header.Typeflag == tar.TypeReg {
+			log.Printf("Processing file: %s\n", header.Name)
+
+			if err := wikiProcessJSONLFile(tarReader); err != nil {
+				log.Printf("Error processing file %s: %v\n", header.Name, err)
+				continue // Continue with next file even if this one fails
+			}
+
+			if totalSize > 0 {
+				percentage := float64(*bytesRead) / float64(totalSize) * 100
+				log.Printf("Processed: %s %.2f%%\n", header.Name, percentage)
+			}
+		}
+	}
+	return nil
 }
 
 func wikiProcessJSONLFile(reader io.Reader) error {
@@ -222,7 +135,6 @@ func wikiProcessJSONLFile(reader io.Reader) error {
 				log.Printf("Error saving to database: %v\n", err)
 				continue
 			}
-			log.Printf("Saved article %d to database\n", art.Identifier)
 		}
 	}
 	return nil
@@ -277,10 +189,6 @@ func wikiProcessTextElementWithText(textContent string, lastHeading *string, pow
 		return
 	}
 	subKey := *lastHeading
-	if subKey == "" {
-		subKey = "" // Explicitly set for clarity
-	}
-
 	found := false
 	for i, item := range *groupedItems {
 		if item["title"] == subKey {

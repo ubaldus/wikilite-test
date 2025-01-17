@@ -38,29 +38,6 @@ func setupDownloadFile(url string, outputPath string) error {
 	return err
 }
 
-func setupGunzipFile(url string, outputPath string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	gzReader, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return err
-	}
-	defer gzReader.Close()
-
-	out, err := os.Create(outputPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, gzReader)
-	return err
-}
-
 func setupFetchDatasetInfo(url string) (*SetupDatasetInfo, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -158,4 +135,70 @@ func Setup() {
 		}
 		fmt.Println("Saved as", ggufFile)
 	}
+}
+
+func setupGunzipFile(url string, outputPath string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to download file: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download file: server returned status %d", resp.StatusCode)
+	}
+
+	totalSize := resp.ContentLength
+	var bytesRead int64
+
+	counter := &byteCounter{total: &bytesRead}
+	teeReader := io.TeeReader(resp.Body, counter)
+
+	gzReader, err := gzip.NewReader(teeReader)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %v", err)
+	}
+	defer gzReader.Close()
+
+	out, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %v", err)
+	}
+	defer out.Close()
+
+	buf := make([]byte, 1024*1024)
+	lastPrintedMilestone := int64(-1)
+
+	for {
+		n, err := gzReader.Read(buf)
+		if n > 0 {
+			written, err := out.Write(buf[:n])
+			if err != nil {
+				return fmt.Errorf("failed to write to output file: %v", err)
+			}
+			if written != n {
+				return fmt.Errorf("failed to write all bytes to output file: expected %d, wrote %d", n, written)
+			}
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("failed to read gzip data: %v", err)
+		}
+
+		currentMilestone := bytesRead / 50_000_000
+		if currentMilestone > lastPrintedMilestone {
+			percentage := float64(bytesRead) / float64(totalSize) * 100
+			fmt.Printf("Downloaded %.2f%%\n", percentage)
+			lastPrintedMilestone = currentMilestone
+		}
+	}
+
+	if bytesRead != totalSize {
+		return fmt.Errorf("downloaded file size mismatch: expected %d bytes, got %d bytes", totalSize, bytesRead)
+	}
+
+	return nil
 }
