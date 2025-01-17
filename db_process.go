@@ -47,6 +47,11 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 	startTime := time.Now()
 	var problematicIDs []int
 	for {
+		tx, err := h.db.Begin()
+		if err != nil {
+			return fmt.Errorf("error starting transaction: %w", err)
+		}
+
 		query := `SELECT id, hash, text FROM hashes WHERE id NOT IN (select vectors_id from vectors_ann_index)`
 		if len(problematicIDs) > 0 {
 			idList := make([]string, 0, len(problematicIDs))
@@ -57,11 +62,11 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		}
 		query += " LIMIT ?"
 
-		rows, err := h.db.Query(query, batchSize)
+		rows, err := tx.Query(query, batchSize)
 		if err != nil {
+			tx.Rollback()
 			return fmt.Errorf("error querying hashes: %w", err)
 		}
-		defer rows.Close()
 
 		type HashData struct {
 			ID   int
@@ -72,23 +77,29 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		for rows.Next() {
 			var data HashData
 			if err := rows.Scan(&data.ID, &data.Hash, &data.Text); err != nil {
+				rows.Close()
+				tx.Rollback()
 				return fmt.Errorf("error scanning row: %w", err)
 			}
 			hashesData = append(hashesData, data)
 		}
+		rows.Close()
+
 		if err := rows.Err(); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("error iterating rows: %w", err)
 		}
 
 		if len(hashesData) == 0 {
-			// No more hashes to process
+			tx.Commit()
 			break
 		}
 
 		var ann_chunk_data []byte
 		var ann_chunk_position int
 		var ann_chunk_rowid int
-		if err := h.db.QueryRow("SELECT id FROM vectors_ann_chunks ORDER BY id DESC LIMIT 1").Scan(&ann_chunk_rowid); err != nil && err != sql.ErrNoRows {
+		if err := tx.QueryRow("SELECT id FROM vectors_ann_chunks ORDER BY id DESC LIMIT 1").Scan(&ann_chunk_rowid); err != nil && err != sql.ErrNoRows {
+			tx.Rollback()
 			return err
 		}
 		ann_chunk_rowid++
@@ -101,12 +112,12 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 				continue
 			}
 
-			if _, err := h.db.Exec("INSERT OR REPLACE INTO vectors (rowid, embedding) VALUES (?, ?)", hashData.ID, aiFloat32ToBytes(embedding)); err != nil {
+			if _, err := tx.Exec("INSERT OR REPLACE INTO vectors (rowid, embedding) VALUES (?, ?)", hashData.ID, aiFloat32ToBytes(embedding)); err != nil {
 				log.Printf("Error inserting vectors for hash %s: %v", hashData.Hash, err)
 				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
 			}
-			if _, err := h.db.Exec("INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)", hashData.ID, ann_chunk_rowid, ann_chunk_position); err != nil {
+			if _, err := tx.Exec("INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)", hashData.ID, ann_chunk_rowid, ann_chunk_position); err != nil {
 				log.Printf("Error inserting vectors_ann for hash %s: %v", hashData.Hash, err)
 				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
@@ -114,9 +125,15 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 			ann_chunk_data = append(ann_chunk_data, aiQuantizeBinary(embedding)...)
 			ann_chunk_position++
 		}
-		if _, err := h.db.Exec("INSERT INTO vectors_ann_chunks (id, chunk) VALUES (?, ?)", ann_chunk_rowid, ann_chunk_data); err != nil {
+		if _, err := tx.Exec("INSERT INTO vectors_ann_chunks (id, chunk) VALUES (?, ?)", ann_chunk_rowid, ann_chunk_data); err != nil {
+			tx.Rollback()
 			return err
 		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("error committing transaction: %w", err)
+		}
+
 		processedCount := offset + len(hashesData)
 		progress := float64(processedCount) / float64(totalCount) * 100
 		elapsed := time.Since(startTime)
