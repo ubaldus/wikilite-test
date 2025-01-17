@@ -19,7 +19,6 @@ jobs:
 
       - name: Build wikilite for MacOS AMD64
         run: |
-          CC=clang \
           CGO_ENABLED=1 \
           GOOS=darwin \
           GOARCH=amd64 \
@@ -52,7 +51,6 @@ jobs:
 
       - name: Build wikilite for MacOS ARM64
         run: |
-          CC=clang \
           CGO_ENABLED=1 \
           GOOS=darwin \
           GOARCH=arm64 \
@@ -82,13 +80,9 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.23.4'
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc
-
+          
       - name: Build wikilite for Linux AMD64
         run: |
-          CC=gcc \
           CGO_ENABLED=1 \
           GOOS=linux \
           GOARCH=amd64 \
@@ -109,7 +103,7 @@ jobs:
 
   build-linux-arm64:
     name: Build for Linux ARM64
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -119,13 +113,8 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-
       - name: Build wikilite for Linux ARM64
         run: |
-          CC=aarch64-linux-gnu-gcc \
-          CXX=aarch64-linux-gnu-g++ \
           CGO_ENABLED=1 \
           GOOS=linux \
           GOARCH=arm64 \
@@ -155,9 +144,6 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.23.4'
-
-      - name: Install dependencies
-        run: choco install mingw -y
 
       - name: Build wikilite for Windows AMD64
         run: |
