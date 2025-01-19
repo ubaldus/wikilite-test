@@ -3,12 +3,12 @@
 
 function createSearchCheckboxes() {
     const checkboxContainer = document.createElement('div');
-    checkboxContainer.className = 'mt-2';
+    checkboxContainer.className = 'mt-2 text-center';
 
     const searchTypes = [
         { id: 'titleSearch', label: 'Title', value: 'title', checked: true },
-        { id: 'contentSearch', label: 'Content', value: 'content' },
-        { id: 'vectorSearch', label: 'Vector', value: 'vectors' }
+        { id: 'contentSearch', label: 'Lexical', value: 'content' },
+        { id: 'vectorSearch', label: 'Semantic', value: 'vectors' }
     ];
 
     searchTypes.forEach(type => {
@@ -76,7 +76,7 @@ function submitSearch(event) {
 
 function performSearch(query, type, onComplete) {
     const endpoint = `/api/search/${type}`;
-    const payload = { query: query, limit: 3 };
+    const payload = { query: query, limit: parseInt(document.getElementById("limit").value) };
 
     fetch(endpoint, {
         method: 'POST',

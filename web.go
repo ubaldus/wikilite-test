@@ -52,6 +52,7 @@ func (s *WebServer) executeTemplate(w http.ResponseWriter, templateName string, 
 func (s *WebServer) handleHTMLSearch(w http.ResponseWriter, r *http.Request) {
 	type TemplateData struct {
 		Query    string
+		Limit    int
 		Results  []SearchResult
 		HasQuery bool
 		Language string
@@ -59,7 +60,13 @@ func (s *WebServer) handleHTMLSearch(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "POST" {
 		query := r.FormValue("query")
-		results, err := Search(query, options.limit)
+		limitString := r.FormValue("limit")
+		limit, err := strconv.Atoi(limitString)
+		if err != nil {
+			limit = options.limit
+		}
+
+		results, err := Search(query, limit)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -68,6 +75,7 @@ func (s *WebServer) handleHTMLSearch(w http.ResponseWriter, r *http.Request) {
 
 		data := TemplateData{
 			Query:    query,
+			Limit:    limit,
 			Results:  results,
 			HasQuery: query != "",
 			Language: options.language,
@@ -79,6 +87,7 @@ func (s *WebServer) handleHTMLSearch(w http.ResponseWriter, r *http.Request) {
 
 	data := TemplateData{
 		Language: options.language,
+		Limit:    options.limit,
 	}
 	s.executeTemplate(w, "search.html", data)
 }

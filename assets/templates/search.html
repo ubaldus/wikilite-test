@@ -4,7 +4,8 @@
 
 <form id="searchForm" class="mb-4" action="?" method="post">
     <div class="input-group">
-        <input type="text" name="query" class="form-control" id="speechInput" value="{{.Query}}">
+        <input type="text" name="query" class="form-control flex-grow-1" id="speechInput" value="{{.Query}}">
+        <input type="number" name="limit" class="form-control text-center" id="limit" value="{{.Limit}}" size="3" style="width: 5ch; flex: none;">
         <button type="button" id="startSpeech" class="btn btn-secondary"><i class="bi bi-mic-fill"></i></button>
         <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
     </div>
