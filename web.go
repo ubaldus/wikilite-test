@@ -50,46 +50,43 @@ func (s *WebServer) executeTemplate(w http.ResponseWriter, templateName string, 
 }
 
 func (s *WebServer) handleHTMLSearch(w http.ResponseWriter, r *http.Request) {
-	type TemplateData struct {
+	var err error
+	var query string
+	var limit int
+	var results []SearchResult
+
+	if r.Method == "POST" {
+		query = r.FormValue("query")
+		limit, _ = strconv.Atoi(r.FormValue("limit"))
+	}
+
+	if limit <= 0 {
+		limit = options.limit
+	}
+
+	if query != "" {
+		results, err = Search(query, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	s.executeTemplate(w, "search.html", struct {
 		Query    string
 		Limit    int
 		Results  []SearchResult
 		HasQuery bool
 		Language string
-	}
-
-	if r.Method == "POST" {
-		query := r.FormValue("query")
-		limitString := r.FormValue("limit")
-		limit, err := strconv.Atoi(limitString)
-		if err != nil {
-			limit = options.limit
-		}
-
-		results, err := Search(query, limit)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		data := TemplateData{
-			Query:    query,
-			Limit:    limit,
-			Results:  results,
-			HasQuery: query != "",
-			Language: options.language,
-		}
-		log.Println(data)
-		s.executeTemplate(w, "search.html", data)
-		return
-	}
-
-	data := TemplateData{
+		AI       bool
+	}{
+		Query:    query,
+		Limit:    limit,
+		Results:  results,
+		HasQuery: query != "",
 		Language: options.language,
-		Limit:    options.limit,
-	}
-	s.executeTemplate(w, "search.html", data)
+		AI:       ai,
+	})
 }
 
 func (s *WebServer) handleHTMLArticle(w http.ResponseWriter, r *http.Request) {
@@ -106,14 +103,13 @@ func (s *WebServer) handleHTMLArticle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data := struct {
+		s.executeTemplate(w, "article.html", struct {
 			Language string
 			Results  []ArticleResult
 		}{
 			Language: options.language,
 			Results:  results,
-		}
-		s.executeTemplate(w, "article.html", data)
+		})
 	}
 }
 

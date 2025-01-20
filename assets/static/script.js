@@ -1,5 +1,225 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
+let article = null;
+let currentSection = 0;
+let currentText = 0;
+let utterance = null;
+let isPlaying = false;
+let isLastItem = false;
+let isSpeakingSection = false;
+
+const urlParams = new URLSearchParams(window.location.search);
+const language = urlParams.get('language') || 'en-US';
+const ai = urlParams.get('ai') === 'true';
+const speechInput = document.getElementById('speechInput');
+const startSpeechButton = document.getElementById('startSpeech');
+const searchForm = document.getElementById('searchForm');
+
+if (startSpeechButton && !/Chrome/.test(navigator.userAgent)) {
+    startSpeechButton.style.display = 'none';
+}
+
+async function fetchArticle(articleId) {
+    try {
+        document.getElementById('loadingSpinner').classList.remove('d-none');
+        const response = await fetch(`/api/article?id=${articleId}`);
+        const data = await response.json();
+        if (data.status === 'success') {
+            article = data.article[0];
+            displayArticle();
+        }
+    } catch (error) {
+        console.error('Error fetching article:', error);
+    } finally {
+        document.getElementById('loadingSpinner').classList.add('d-none');
+    }
+}
+
+function displayArticle() {
+    document.getElementById('articleTitle').textContent = article.title;
+    document.title = article.title;
+    const container = document.getElementById('articleTextContent');
+    container.innerHTML = '';
+    article.sections.forEach((section, sectionIndex) => {
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'mb-4';
+        const title = document.createElement('h2');
+        title.textContent = section.title;
+        title.id = `section-${sectionIndex}`;
+        sectionDiv.appendChild(title);
+        section.texts.forEach((text, textIndex) => {
+            const p = document.createElement('p');
+            p.textContent = text;
+            p.id = `text-${sectionIndex}-${textIndex}`;
+            sectionDiv.appendChild(p);
+        });
+        container.appendChild(sectionDiv);
+    });
+    toggleSearchAndArticleVisibility(true);
+    toggleArrowsVisibility(true);
+}
+
+function speakCurrent(section = false) {
+    const currentElement = document.getElementById(`text-${currentSection}-${currentText}`);
+    const sectionTitle = document.getElementById(`section-${currentSection}`);
+    const articleTitle = document.getElementById('articleTitle');
+
+    if (section) {
+        if (sectionTitle) {
+            speak(sectionTitle.textContent, true);
+            highlightCurrent(true);
+        }
+    } else {
+        if (currentSection === 0 && currentText === 0 && !isSpeakingSection) {
+            speak(articleTitle.textContent, true);
+            highlightCurrent(true);
+        } else if (currentElement) {
+            speak(currentElement.textContent, false);
+            highlightCurrent(false);
+        }
+    }
+}
+
+function speak(text, isSectionTitle = false) {
+    if (utterance) {
+        speechSynthesis.cancel();
+    }
+    utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language;
+    isSpeakingSection = isSectionTitle;
+    if (isSectionTitle) {
+        utterance.volume = 1.0;
+        utterance.rate = 0.9;
+        text += '... ... ...';
+    }
+    utterance.onend = () => {
+        if (isPlaying && !isLastItem) {
+            if (isSpeakingSection) {
+                setTimeout(() => {
+                    currentText = 0;
+                    const firstTextElement = document.getElementById(`text-${currentSection}-${currentText}`);
+                    if (firstTextElement) {
+                        speak(firstTextElement.textContent, false);
+                        highlightCurrent(false);
+                    }
+                }, 2000);
+            } else {
+                if (currentText === article.sections[currentSection].texts.length - 1) {
+                    if (currentSection < article.sections.length - 1) {
+                        currentSection++;
+                        currentText = 0;
+                        const sectionTitle = document.getElementById(`section-${currentSection}`);
+                        if (sectionTitle) {
+                            speak(sectionTitle.textContent, true);
+                            highlightCurrent(true);
+                        }
+                    } else {
+                        isLastItem = true;
+                        isPlaying = false;
+                        document.getElementById('playPauseIcon').className = 'bi bi-play-fill';
+                    }
+                } else {
+                    nextText();
+                }
+            }
+        }
+    };
+    speechSynthesis.speak(utterance);
+}
+
+function highlightCurrent(section = false) {
+    document.querySelectorAll('.highlight, .highlight-section').forEach(el => {
+        el.classList.remove('highlight', 'highlight-section');
+    });
+    if (section) {
+        const sectionTitle = document.getElementById(`section-${currentSection}`);
+        if (sectionTitle) {
+            sectionTitle.classList.add('highlight-section');
+            sectionTitle.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    } else {
+        const currentElement = document.getElementById(`text-${currentSection}-${currentText}`);
+        if (currentElement) {
+            currentElement.classList.add('highlight');
+            currentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+}
+
+function playPause() {
+    isPlaying = !isPlaying;
+    isLastItem = false;
+    const icon = document.getElementById('playPauseIcon');
+    if (isPlaying) {
+        icon.className = 'bi bi-pause-fill';
+        speakCurrent();
+    } else {
+        icon.className = 'bi bi-play-fill';
+        speechSynthesis.cancel();
+    }
+}
+
+function nextSection() {
+    if (currentSection < article.sections.length - 1) {
+        currentSection++;
+        currentText = 0;
+        isLastItem = false;
+        if (isPlaying) {
+            speakCurrent(true);
+        } else {
+            highlightCurrent(true);
+        }
+    }
+}
+
+function prevSection() {
+    if (currentSection > 0) {
+        currentSection--;
+        currentText = 0;
+        isLastItem = false;
+        if (isPlaying) {
+            speakCurrent(true);
+        } else {
+            highlightCurrent(true);
+        }
+    }
+}
+
+function nextText() {
+    if (currentText < article.sections[currentSection].texts.length - 1) {
+        currentText++;
+        isLastItem = false;
+    } else if (currentSection < article.sections.length - 1) {
+        currentSection++;
+        currentText = 0;
+        isLastItem = false;
+    } else {
+        isLastItem = true;
+        isPlaying = false;
+        document.getElementById('playPauseIcon').className = 'bi bi-play-fill';
+        return;
+    }
+    if (isPlaying) {
+        speakCurrent();
+    } else {
+        highlightCurrent();
+    }
+}
+
+function prevText() {
+    if (currentText > 0) {
+        currentText--;
+    } else if (currentSection > 0) {
+        currentSection--;
+        currentText = article.sections[currentSection].texts.length - 1;
+    }
+    isLastItem = false;
+    if (isPlaying) {
+        speakCurrent();
+    } else {
+        highlightCurrent();
+    }
+}
 
 function createSearchCheckboxes() {
     const checkboxContainer = document.createElement('div');
@@ -8,8 +228,11 @@ function createSearchCheckboxes() {
     const searchTypes = [
         { id: 'titleSearch', label: 'Title', value: 'title', checked: true },
         { id: 'contentSearch', label: 'Lexical', value: 'content' },
-        { id: 'vectorSearch', label: 'Semantic', value: 'vectors' }
     ];
+
+    if (ai) {
+        searchTypes.push({ id: 'vectorSearch', label: 'Semantic', value: 'vectors' });
+    }
 
     searchTypes.forEach(type => {
         const formCheck = document.createElement('div');
@@ -42,6 +265,12 @@ function submitSearch(event) {
     if (event) {
         event.preventDefault();
     }
+
+    document.getElementById('articleTextContent').innerHTML = '';
+    document.getElementById('articleTitle').textContent = '';
+    toggleArrowsVisibility(false);
+    document.getElementById('resultsContainer').style.display = 'block';
+
     const query = document.getElementById('speechInput').value;
     const searchTypes = Array.from(document.querySelectorAll('input[name="searchType"]:checked')).map(el => el.value);
 
@@ -49,7 +278,7 @@ function submitSearch(event) {
         document.getElementById('resultsContainer').querySelector('ol').innerHTML = '';
         document.getElementById('resultsContainer').querySelector('.alert')?.remove();
 
-        document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('loadingSpinner').classList.remove('d-none');
 
         let completedSearches = 0;
         let totalResults = 0;
@@ -60,7 +289,7 @@ function submitSearch(event) {
                 totalResults += results.length;
 
                 if (completedSearches === searchTypes.length) {
-                    document.getElementById('loadingSpinner').style.display = 'none';
+                    document.getElementById('loadingSpinner').classList.add('d-none');
 
                     if (totalResults === 0) {
                         const noResults = document.createElement('div');
@@ -113,13 +342,14 @@ function displayResults(results, type) {
             divContent.className = 'ms-2 me-auto';
 
             const titleLink = document.createElement('a');
-						if ('speechSynthesis' in window) {
-							titleLink.href= `/static/tts.html?id=${result.article_id}&locale=${language}`;
-						} else {
-							titleLink.href = `article?id=${result.article_id}`;
-						}
+            titleLink.href = '#';
             titleLink.className = 'text-decoration-none';
             titleLink.textContent = result.title;
+            titleLink.addEventListener('click', () => {
+                fetchArticle(result.article_id);
+                document.getElementById('resultsContainer').classList.add('d-none');
+                document.getElementById('articleContent').classList.remove('d-none');
+            });
 
             const text = document.createElement('p');
             text.textContent = result.text;
@@ -137,12 +367,30 @@ function displayResults(results, type) {
     }
 }
 
-const speechInput = document.getElementById('speechInput');
-const startSpeechButton = document.getElementById('startSpeech');
-const searchForm = document.getElementById('searchForm');
+function toggleArrowsVisibility(show) {
+    const arrowsBlock = document.querySelector('.control-buttons');
+    if (arrowsBlock) {
+        if (show) {
+            arrowsBlock.classList.remove('d-none');
+            arrowsBlock.classList.add('d-flex');
+        } else {
+            arrowsBlock.classList.remove('d-flex');
+            arrowsBlock.classList.add('d-none');
+        }
+    }
+}
 
-if (startSpeechButton && !/Chrome/.test(navigator.userAgent)) {
-    startSpeechButton.style.display = 'none';
+function toggleSearchAndArticleVisibility(showArticle) {
+    const searchSection = document.getElementById('searchSection');
+    const articleContent = document.getElementById('articleContent');
+
+    if (showArticle) {
+        searchSection.classList.add('d-none');
+        articleContent.classList.remove('d-none');
+    } else {
+        searchSection.classList.remove('d-none');
+        articleContent.classList.add('d-none');
+    }
 }
 
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -154,7 +402,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
     recognition.onstart = () => {
         if (startSpeechButton) startSpeechButton.disabled = true;
-        console.log("Speech Recognition started");
     };
 
     recognition.onresult = (event) => {
@@ -170,7 +417,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
     recognition.onend = () => {
         if (startSpeechButton) startSpeechButton.disabled = false;
-        console.log("Speech Recognition ended");
         submitSearch(null);
     };
 
@@ -189,3 +435,34 @@ if (searchForm) {
         submitSearch(event);
     });
 }
+
+document.addEventListener('keydown', (event) => {
+    switch (event.code) {
+        case 'Space':
+            event.preventDefault();
+            playPause();
+            break;
+        case 'ArrowRight':
+            event.preventDefault();
+            nextText();
+            break;
+        case 'ArrowLeft':
+            event.preventDefault();
+            prevText();
+            break;
+        case 'ArrowUp':
+            event.preventDefault();
+            prevSection();
+            break;
+        case 'ArrowDown':
+            event.preventDefault();
+            nextSection();
+            break;
+    }
+});
+
+document.getElementById('playPause').addEventListener('click', playPause);
+document.getElementById('nextText').addEventListener('click', nextText);
+document.getElementById('prevText').addEventListener('click', prevText);
+document.getElementById('nextSection').addEventListener('click', nextSection);
+document.getElementById('prevSection').addEventListener('click', prevSection);
