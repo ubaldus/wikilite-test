@@ -7,6 +7,9 @@ let utterance = null;
 let isPlaying = false;
 let isLastItem = false;
 let isSpeakingSection = false;
+let currentSpeakingResultIndex = 0;
+let isReadingResults = false;
+let isVoiceSearch = false;
 
 const urlParams = new URLSearchParams(window.location.search);
 const language = urlParams.get('language') || 'en-US';
@@ -27,6 +30,11 @@ async function fetchArticle(articleId) {
         if (data.status === 'success') {
             article = data.article[0];
             displayArticle();
+            if (isVoiceSearch) {
+								speechSynthesis.cancel();
+								isReadingResults = false;
+                playPause();
+            }
         }
     } catch (error) {
         console.error('Error fetching article:', error);
@@ -78,6 +86,18 @@ function speakCurrent(section = false) {
             highlightCurrent(false);
         }
     }
+}
+
+function speakResult(text, onEnd = null) {
+    if (utterance) {
+        speechSynthesis.cancel();
+    }
+    utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language;
+    utterance.onend = () => {
+        if (onEnd) onEnd();
+    };
+    speechSynthesis.speak(utterance);
 }
 
 function speak(text, isSectionTitle = false) {
@@ -296,6 +316,12 @@ function submitSearch(event) {
                         noResults.className = 'alert alert-info';
                         noResults.textContent = `No results found for "${query}"`;
                         document.getElementById('resultsContainer').appendChild(noResults);
+                    } else {
+                        currentSpeakingResultIndex = 0;
+                        isReadingResults = isVoiceSearch;
+                        if (isVoiceSearch) {
+                            readNextResultTitle();
+                        }
                     }
                 }
             });
@@ -330,11 +356,31 @@ function performSearch(query, type, onComplete) {
         });
 }
 
+function readNextResultTitle() {
+    if (!isReadingResults) return;
+
+    const results = document.querySelectorAll('#resultsContainer ol li');
+    if (currentSpeakingResultIndex < results.length) {
+        const title = results[currentSpeakingResultIndex].querySelector('a').textContent;
+        speakResult(title, () => {
+            setTimeout(() => {
+                currentSpeakingResultIndex++;
+                if (currentSpeakingResultIndex < results.length) {
+                    readNextResultTitle();
+                } else {
+                    currentSpeakingResultIndex = 0;
+                    readNextResultTitle();
+                }
+            }, 2000);
+        });
+    }
+}
+
 function displayResults(results, type) {
     const container = document.getElementById('resultsContainer').querySelector('ol');
 
     if (results.length > 0) {
-        results.forEach(result => {
+        results.forEach((result, index) => {
             const li = document.createElement('li');
             li.className = 'list-group-item d-flex justify-content-between align-items-start';
 
@@ -408,11 +454,13 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const speechResult = event.results[0][0].transcript;
         speechInput.value = speechResult;
         if (startSpeechButton) startSpeechButton.disabled = false;
+				isVoiceSearch = true;
     };
 
     recognition.onerror = (event) => {
         if (startSpeechButton) startSpeechButton.disabled = false;
         console.error("Speech Recognition Error:", event.error);
+				isVoiceSearch = false;
     };
 
     recognition.onend = () => {
@@ -429,15 +477,10 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     document.getElementById("startSpeech").style.display = "none";
 }
 
-if (searchForm) {
-    createSearchCheckboxes();
-    searchForm.addEventListener('submit', function (event) {
-        submitSearch(event);
-    });
-}
-
 document.addEventListener('keydown', (event) => {
+	if (article) {
     switch (event.code) {
+				case 'Enter':
         case 'Space':
             event.preventDefault();
             playPause();
@@ -458,7 +501,22 @@ document.addEventListener('keydown', (event) => {
             event.preventDefault();
             nextSection();
             break;
-    }
+			}
+	}
+	if (isReadingResults) {
+		switch(event.code) {
+        case 'Enter':
+				case 'Space':
+                event.preventDefault();
+                speechSynthesis.cancel();
+                isReadingResults = false;
+                const results = document.querySelectorAll('#resultsContainer ol li');
+                if (currentSpeakingResultIndex < results.length) {
+                    const titleLink = results[currentSpeakingResultIndex].querySelector('a');
+                    titleLink.click();
+                }
+			}
+  }
 });
 
 document.getElementById('playPause').addEventListener('click', playPause);
@@ -466,3 +524,10 @@ document.getElementById('nextText').addEventListener('click', nextText);
 document.getElementById('prevText').addEventListener('click', prevText);
 document.getElementById('nextSection').addEventListener('click', nextSection);
 document.getElementById('prevSection').addEventListener('click', prevSection);
+
+if (searchForm) {
+    createSearchCheckboxes();
+    searchForm.addEventListener('submit', function (event) {
+        submitSearch(event);
+    });
+}
