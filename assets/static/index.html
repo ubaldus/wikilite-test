@@ -35,6 +35,14 @@
             display: flex;
             gap: 5px;
         }
+        .blinking {
+          animation: blink 1s infinite;
+        }
+        @keyframes blink {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -47,7 +55,6 @@
                 <div class="input-group">
                     <input type="text" name="query" class="form-control flex-grow-1" id="speechInput" value="">
                     <input type="number" name="limit" class="form-control text-center" id="limit" value="5" size="3" style="width: 5ch; flex: none;">
-                    <button type="button" id="startSpeech" class="btn btn-secondary"><i class="bi bi-mic-fill"></i></button>
                     <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
                 </div>
             </form>
@@ -60,6 +67,12 @@
 
             <div id="resultsContainer">
                 <ol class="list-group list-group-numbered"></ol>
+            </div>
+
+            <div class="text-center mt-5">
+                <button type="button" id="startSpeech" class="btn btn-lg">
+                    <i class="bi bi-mic-fill fs-1"></i>
+                </button>
             </div>
         </div>
 

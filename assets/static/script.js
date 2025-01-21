@@ -18,10 +18,6 @@ const speechInput = document.getElementById('speechInput');
 const startSpeechButton = document.getElementById('startSpeech');
 const searchForm = document.getElementById('searchForm');
 
-if (startSpeechButton && !/Chrome/.test(navigator.userAgent)) {
-    startSpeechButton.style.display = 'none';
-}
-
 async function fetchArticle(articleId) {
     try {
         document.getElementById('loadingSpinner').classList.remove('d-none');
@@ -31,8 +27,8 @@ async function fetchArticle(articleId) {
             article = data.article[0];
             displayArticle();
             if (isVoiceSearch) {
-								speechSynthesis.cancel();
-								isReadingResults = false;
+                speechSynthesis.cancel();
+                isReadingResults = false;
                 playPause();
             }
         }
@@ -297,7 +293,6 @@ function submitSearch(event) {
     if (query && searchTypes.length > 0) {
         document.getElementById('resultsContainer').querySelector('ol').innerHTML = '';
         document.getElementById('resultsContainer').querySelector('.alert')?.remove();
-
         document.getElementById('loadingSpinner').classList.remove('d-none');
 
         let completedSearches = 0;
@@ -439,6 +434,7 @@ function toggleSearchAndArticleVisibility(showArticle) {
     }
 }
 
+
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
@@ -448,23 +444,37 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
     recognition.onstart = () => {
         if (startSpeechButton) startSpeechButton.disabled = true;
+        if (isReadingResults) {
+          speechSynthesis.cancel();
+          isReadingResults = false;
+        } 
+        startSpeechButton.classList.add('blinking');
     };
 
     recognition.onresult = (event) => {
         const speechResult = event.results[0][0].transcript;
         speechInput.value = speechResult;
-        if (startSpeechButton) startSpeechButton.disabled = false;
-				isVoiceSearch = true;
+        if (startSpeechButton) {
+          startSpeechButton.disabled = false;
+          startSpeechButton.classList.remove('blinking');
+        }
+        isVoiceSearch = true;
     };
 
     recognition.onerror = (event) => {
-        if (startSpeechButton) startSpeechButton.disabled = false;
+        if (startSpeechButton) {
+          startSpeechButton.disabled = false;
+          startSpeechButton.classList.remove('blinking');
+        }
         console.error("Speech Recognition Error:", event.error);
-				isVoiceSearch = false;
+        isVoiceSearch = false;
     };
 
     recognition.onend = () => {
-        if (startSpeechButton) startSpeechButton.disabled = false;
+        if (startSpeechButton) {
+          startSpeechButton.disabled = false;
+          startSpeechButton.classList.remove('blinking');
+        }
         submitSearch(null);
     };
 
@@ -477,36 +487,65 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     document.getElementById("startSpeech").style.display = "none";
 }
 
+if (startSpeechButton && !/Chrome/.test(navigator.userAgent)) {
+    startSpeechButton.style.display = 'none';
+}
+
+if (searchForm) {
+    createSearchCheckboxes();
+    searchForm.addEventListener('submit', function (event) {
+        submitSearch(event);
+    });
+}
+
+
+document.getElementById('playPause').addEventListener('click', playPause);
+document.getElementById('nextText').addEventListener('click', nextText);
+document.getElementById('prevText').addEventListener('click', prevText);
+document.getElementById('nextSection').addEventListener('click', nextSection);
+document.getElementById('prevSection').addEventListener('click', prevSection);
 document.addEventListener('keydown', (event) => {
-	if (article) {
+  if (article) {
     switch (event.code) {
-				case 'Enter':
+        case 'Digit1':
+        case 'Home':
+        case 'Escape':
+          event.preventDefault();
+          speechSynthesis.cancel();
+          location.reload(true);
+          break;
+        case 'Digit5':
+        case 'Enter':
         case 'Space':
             event.preventDefault();
             playPause();
             break;
+        case 'Digit6':
         case 'ArrowRight':
             event.preventDefault();
             nextText();
             break;
+        case 'Digit4':
         case 'ArrowLeft':
             event.preventDefault();
             prevText();
             break;
+        case 'Digit8':
         case 'ArrowUp':
             event.preventDefault();
             prevSection();
             break;
+        case 'Digit2':
         case 'ArrowDown':
             event.preventDefault();
             nextSection();
             break;
-			}
-	}
-	if (isReadingResults) {
-		switch(event.code) {
+      }
+  }
+  if (isReadingResults) {
+    switch(event.code) {
         case 'Enter':
-				case 'Space':
+        case 'Space':
                 event.preventDefault();
                 speechSynthesis.cancel();
                 isReadingResults = false;
@@ -515,19 +554,15 @@ document.addEventListener('keydown', (event) => {
                     const titleLink = results[currentSpeakingResultIndex].querySelector('a');
                     titleLink.click();
                 }
-			}
+      }
+  }
+  if (startSpeechButton.style.display !== 'none') {
+    switch(event.code) {
+      case 'NumLock':
+      case 'ControlLeft':
+      case 'ControlRight':
+        startSpeechButton.click();
+        break;
+    }
   }
 });
-
-document.getElementById('playPause').addEventListener('click', playPause);
-document.getElementById('nextText').addEventListener('click', nextText);
-document.getElementById('prevText').addEventListener('click', prevText);
-document.getElementById('nextSection').addEventListener('click', nextSection);
-document.getElementById('prevSection').addEventListener('click', prevSection);
-
-if (searchForm) {
-    createSearchCheckboxes();
-    searchForm.addEventListener('submit', function (event) {
-        submitSearch(event);
-    });
-}
