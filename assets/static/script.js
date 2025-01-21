@@ -10,6 +10,10 @@ let isSpeakingSection = false;
 let currentSpeakingResultIndex = 0;
 let isReadingResults = false;
 let isVoiceSearch = false;
+let beepAudioContext;
+let beepLoadingOscillator;
+let beepLoadingGainNode;
+let beepTimeoutId;
 
 const urlParams = new URLSearchParams(window.location.search);
 const language = urlParams.get('language') || 'en-US';
@@ -294,6 +298,9 @@ function submitSearch(event) {
         document.getElementById('resultsContainer').querySelector('ol').innerHTML = '';
         document.getElementById('resultsContainer').querySelector('.alert')?.remove();
         document.getElementById('loadingSpinner').classList.remove('d-none');
+        if (isVoiceSearch) {
+          beepLoadingStart();
+        }
 
         let completedSearches = 0;
         let totalResults = 0;
@@ -311,10 +318,15 @@ function submitSearch(event) {
                         noResults.className = 'alert alert-info';
                         noResults.textContent = `No results found for "${query}"`;
                         document.getElementById('resultsContainer').appendChild(noResults);
+                        if (isVoiceSearch) {
+                          beepLoadingStop();
+                          beepAlert();
+                        }
                     } else {
                         currentSpeakingResultIndex = 0;
                         isReadingResults = isVoiceSearch;
                         if (isVoiceSearch) {
+                            beepLoadingStop();
                             readNextResultTitle();
                         }
                     }
@@ -356,13 +368,21 @@ function readNextResultTitle() {
 
     const results = document.querySelectorAll('#resultsContainer ol li');
     if (currentSpeakingResultIndex < results.length) {
+        if (currentSpeakingResultIndex > 0) {
+            results[currentSpeakingResultIndex - 1].classList.remove('highlight');
+        }
+
         const title = results[currentSpeakingResultIndex].querySelector('a').textContent;
         speakResult(title, () => {
+            results[currentSpeakingResultIndex].classList.add('highlight');
+            results[currentSpeakingResultIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+
             setTimeout(() => {
                 currentSpeakingResultIndex++;
                 if (currentSpeakingResultIndex < results.length) {
                     readNextResultTitle();
                 } else {
+                    results[currentSpeakingResultIndex - 1].classList.remove('highlight');
                     currentSpeakingResultIndex = 0;
                     readNextResultTitle();
                 }
@@ -431,6 +451,80 @@ function toggleSearchAndArticleVisibility(showArticle) {
     } else {
         searchSection.classList.remove('d-none');
         articleContent.classList.add('d-none');
+    }
+}
+
+function beepInitializeContext() {
+    if (!beepAudioContext) {
+        beepAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (beepAudioContext.state === 'suspended') {
+        beepAudioContext.resume();
+    }
+}
+
+function beepAlert() {
+    beepInitializeContext();
+
+    const errorOscillator = beepAudioContext.createOscillator();
+    const errorGainNode = beepAudioContext.createGain();
+
+    errorOscillator.type = 'square';
+    errorOscillator.frequency.setValueAtTime(310, beepAudioContext.currentTime);
+    errorGainNode.gain.setValueAtTime(0.25, beepAudioContext.currentTime);
+
+    errorOscillator.connect(errorGainNode);
+    errorGainNode.connect(beepAudioContext.destination);
+
+    errorOscillator.start();
+    errorOscillator.stop(beepAudioContext.currentTime + 0.5);
+}
+
+function beepLoadingStart() {
+    beepInitializeContext();
+
+    let beepLoadingOscillator;
+    let beepLoadingGainNode;
+
+    function playBeep(time) {
+        beepLoadingOscillator = beepAudioContext.createOscillator();
+        beepLoadingGainNode = beepAudioContext.createGain();
+        beepLoadingOscillator.type = 'sine';
+        beepLoadingOscillator.frequency.setValueAtTime(1000, time);
+        beepLoadingGainNode.gain.setValueAtTime(0, time);
+        beepLoadingOscillator.connect(beepLoadingGainNode);
+        beepLoadingGainNode.connect(beepAudioContext.destination);
+        beepLoadingOscillator.start(time);
+        beepLoadingGainNode.gain.setValueAtTime(1, time);
+        beepLoadingGainNode.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+        beepLoadingGainNode.gain.setValueAtTime(0, time + 0.06);
+        beepLoadingOscillator.stop(time + 0.06);
+    }
+
+    let time = beepAudioContext.currentTime;
+
+    function scheduleBeep() {
+        playBeep(time);
+        time += 1.0;
+        beepTimeoutId = setTimeout(scheduleBeep, (time - beepAudioContext.currentTime) * 1000);
+    }
+
+    scheduleBeep();
+}
+
+function beepLoadingStop() {
+    if (beepTimeoutId) {
+        clearTimeout(beepTimeoutId);
+        beepTimeoutId = null;
+    }
+    if (beepLoadingOscillator) {
+        beepLoadingOscillator.stop();
+        beepLoadingOscillator.disconnect();
+        beepLoadingOscillator = null;
+    }
+    if (beepLoadingGainNode) {
+        beepLoadingGainNode.disconnect();
+        beepLoadingGainNode = null;
     }
 }
 
