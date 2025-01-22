@@ -4,9 +4,8 @@
 
 <form id="searchForm" class="mb-4" action="?" method="post">
     <div class="input-group">
-        <input type="text" name="query" class="form-control flex-grow-1" id="speechInput" value="{{.Query}}">
-        <input type="number" name="limit" class="form-control text-center" id="limit" value="{{.Limit}}" size="3" style="width: 5ch; flex: none;">
-        <button type="button" id="startSpeech" class="btn btn-secondary"><i class="bi bi-mic-fill"></i></button>
+        <input type="text" name="query" class="form-control flex-grow-1" value="{{.Query}}">
+        <input type="number" name="limit" class="form-control text-center" value="{{.Limit}}" size="3" style="width: 5ch; flex: none;">
         <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
     </div>
 </form>
@@ -29,16 +28,10 @@
    {{end}}
  {{end}}
 
-<div id="loadingSpinner" class="text-center mb-4" style="display: none;">
-    <div class="spinner-border" role="status">
-        <span class="visually-hidden">Loading...</span>
-    </div>
-</div>
-
-<div id="resultsContainer">
-    <ol class="list-group list-group-numbered"></ol>
-</div>
-
-<script>document.location.href="/static/?language={{.Language}}&ai={{.AI}}";</script>
+<script>
+  if ('speechSynthesis' in window && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+		document.body.innerHTML += `<div class="position-fixed top-0 end-0 m-3"><a href="/static/?language={{.Language}}&ai={{.AI}}" class="btn"><i class="bi bi-mic-fill"></i></a></div>`;
+	}
+</script>
 
 {{template "foot.html" . }}

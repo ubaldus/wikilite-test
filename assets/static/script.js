@@ -247,11 +247,11 @@ function createSearchCheckboxes() {
 
     const searchTypes = [
         { id: 'titleSearch', label: 'Title', value: 'title', checked: true },
-        { id: 'contentSearch', label: 'Lexical', value: 'content' },
+        { id: 'contentSearch', label: 'Lexical', value: 'content', checked: true },
     ];
 
     if (ai) {
-        searchTypes.push({ id: 'vectorSearch', label: 'Semantic', value: 'vectors' });
+        searchTypes.push({ id: 'vectorSearch', label: 'Semantic', value: 'vectors', checked: true });
     }
 
     searchTypes.forEach(type => {

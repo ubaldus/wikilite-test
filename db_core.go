@@ -83,9 +83,11 @@ func (h *DBHandler) initializeDB() error {
 			chunk_position INTEGER NOT NULL
 		)`,
 
-		`CREATE INDEX IF NOT EXISTS vectors_ann_index_chunk_id_position ON vectors_ann_index (chunk_id, chunk_position)`,
+		`CREATE INDEX IF NOT EXISTS idx_vectors_ann_index_chunk_id_position ON vectors_ann_index (chunk_id, chunk_position)`,
+		`CREATE INDEX IF NOT EXISTS idx_sections_article_id ON sections(article_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_content_section_id ON content(section_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_hashes_id ON hashes(id)`,
 	}
-
 	for _, query := range queries {
 		if _, err := h.db.Exec(query); err != nil {
 			return fmt.Errorf("error executing query %s: %v", query, err)

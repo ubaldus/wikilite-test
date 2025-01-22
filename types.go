@@ -3,14 +3,11 @@
 package main
 
 type SearchResult struct {
-	ArticleID    int     `json:"article_id"`
-	Title        string  `json:"title"`
-	Entity       string  `json:"entity"`
-	Text         string  `json:"text"`
-	SectionID    int     `json:"section_id"`
-	SectionTitle string  `json:"section_title"`
-	Type         string  `json:"type"`
-	Power        float64 `json:"power"`
+	ArticleID int     `json:"article_id"`
+	Title     string  `json:"title"`
+	Text      string  `json:"text"`
+	Type      string  `json:"type"`
+	Power     float64 `json:"power"`
 }
 
 type ArticleResultSection struct {

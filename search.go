@@ -43,7 +43,7 @@ func Search(query string, limit int) ([]SearchResult, error) {
 		}
 	}
 
-	return searchOptimize(results), nil
+	return searchOptimize(results, limit), nil
 }
 
 func SearchCli() error {
@@ -94,7 +94,7 @@ func SearchCli() error {
 	}
 }
 
-func searchOptimize(results []SearchResult) []SearchResult {
+func searchOptimize(results []SearchResult, limit int) []SearchResult {
 	seen := make(map[int]bool)
 	accumulatedResults := []SearchResult{}
 
@@ -109,6 +109,9 @@ func searchOptimize(results []SearchResult) []SearchResult {
 					break
 				}
 			}
+		}
+		if len(accumulatedResults) >= limit {
+			break
 		}
 	}
 

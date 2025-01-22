@@ -4,33 +4,21 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"sort"
 )
 
 func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
-		WITH matched_titles AS (
-			SELECT rowid, title, bm25(article_search) AS relevance
-			FROM article_search
-			WHERE article_search MATCH ?
-		)
-		SELECT DISTINCT
-			a.id as article_id,
-			a.title,
-			a.entity,
-			'' as section,
-			'' as text,
-			relevance
-		FROM matched_titles mt
-		JOIN articles a ON a.id = mt.rowid
-		ORDER BY mt.relevance ASC
+		SELECT rowid, title, bm25(article_search) AS power
+		FROM article_search
+		WHERE article_search MATCH ?
+		ORDER BY power ASC
 		LIMIT ?
 	`
 
 	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
 	if err != nil {
-		return nil, fmt.Errorf("search error: %v", err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -40,38 +28,28 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 		if err := rows.Scan(
 			&result.ArticleID,
 			&result.Title,
-			&result.Entity,
-			&result.SectionTitle,
-			&result.Text,
 			&result.Power,
 		); err != nil {
-			return nil, fmt.Errorf("error scanning result: %v", err)
+			return nil, err
 		}
 
-		textQuery := `
-			SELECT text, (
-				SELECT id 
-				FROM sections 
-				WHERE article_id = ? 
-				LIMIT 1
-			) AS section_title
-			FROM hashes
-			WHERE id = (
-				SELECT hash_id 
-				FROM content 
-				WHERE section_id = (
-					SELECT id 
-					FROM sections 
-					WHERE article_id = ? 
-					LIMIT 1
-				) 
-				LIMIT 1
-			)
-			LIMIT 1;
-		`
-		err = h.db.QueryRow(textQuery, result.ArticleID, result.ArticleID).Scan(&result.Text, &result.SectionID)
-		if err != nil && err != sql.ErrNoRows {
-			return nil, fmt.Errorf("error fetching text for article %d: %v", result.ArticleID, err)
+		contentQuery := `
+					SELECT text
+					FROM hashes
+					WHERE id = (
+						SELECT hash_id
+						FROM content
+						WHERE section_id = (
+							SELECT id
+							FROM sections
+							WHERE article_id = ?
+							LIMIT 1
+						)
+					)
+				`
+		err = h.db.QueryRow(contentQuery, result.ArticleID, result.ArticleID).Scan(&result.Text)
+		if err != nil {
+			return nil, err
 		}
 		result.Type = "T"
 		results = append(results, result)
@@ -82,111 +60,58 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 
 func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
-		SELECT rowid, text, bm25(hash_search) as relevance
+		SELECT rowid, text, bm25(hash_search) as power
 		FROM hash_search
 		WHERE hash_search MATCH ?
-		ORDER BY relevance ASC
+		ORDER BY power
 		LIMIT ?;
 	`
-
 	rows, err := h.db.Query(sqlQuery, searchQuery, limit)
 	if err != nil {
-		return nil, fmt.Errorf("hash search error: %v", err)
+		return nil, err
 	}
 	defer rows.Close()
 
-	type HashResult struct {
-		RowID     int
-		Text      string
-		Relevance float64
-	}
-	hashResults := make([]HashResult, 0)
-	for rows.Next() {
-		var result HashResult
-		if err := rows.Scan(&result.RowID, &result.Text, &result.Relevance); err != nil {
-			return nil, fmt.Errorf("error scanning hash result: %v", err)
-		}
-		hashResults = append(hashResults, result)
-	}
-	if len(hashResults) == 0 {
-		return []SearchResult{}, nil
-	}
-	placeholders := ""
-	params := make([]interface{}, len(hashResults))
-
-	for i, hash := range hashResults {
-		if i > 0 {
-			placeholders += ", "
-		}
-		placeholders += "?"
-		params[i] = hash.RowID
-	}
-	sqlQuery = fmt.Sprintf(`
-		SELECT
-			a.id as article_id,
-			a.title,
-			a.entity,
-			s.title as section_title,
-			s.id as section_id,
-			h.id as hash_id
-		FROM hashes h
-		JOIN content c ON c.hash_id = h.id
-		JOIN sections s ON s.id = c.section_id
-		JOIN articles a ON a.id = s.article_id
-		WHERE h.id IN (%s)
-  	`, placeholders)
-
-	rows, err = h.db.Query(sqlQuery, params...)
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving article info: %v", err)
-	}
-	defer rows.Close()
-
-	resultsMap := make(map[int]SearchResult, len(hashResults))
+	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
-		var hash_id int
-		if err := rows.Scan(
-			&result.ArticleID,
-			&result.Title,
-			&result.Entity,
-			&result.SectionTitle,
-			&result.SectionID,
-			&hash_id,
-		); err != nil {
-			return nil, fmt.Errorf("error scanning article info: %v", err)
+		var contentID int
+		if err := rows.Scan(&contentID, &result.Text, &result.Power); err != nil {
+			return nil, err
+		}
+		articleQuery := `
+			SELECT id, title
+			FROM articles
+			WHERE articles.id = (
+				SELECT article_id 
+				FROM sections 
+				WHERE sections.id = 
+					(SELECT section_id FROM content WHERE content.id=?)
+			)
+		`
+		err = h.db.QueryRow(articleQuery, contentID).Scan(&result.ArticleID, &result.Title)
+		if err != nil {
+			return nil, err
 		}
 		result.Type = "C"
-		resultsMap[hash_id] = result
-	}
-
-	results := make([]SearchResult, 0, len(hashResults))
-	for _, hashResult := range hashResults {
-		if result, ok := resultsMap[hashResult.RowID]; ok {
-			result.Text = hashResult.Text
-			result.Power = hashResult.Relevance
-			results = append(results, result)
-		}
-	}
-
-	if len(results) > limit {
-		results = results[:limit]
+		results = append(results, result)
 	}
 
 	return results, nil
 }
 
 func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, error) {
+	annLimit := limit * 8
 	queryEmbedding, err := aiEmbeddings(query)
 	if err != nil {
-		return nil, fmt.Errorf("embeddings generation error: %w", err)
+		return nil, err
 	}
 
 	quantizedQuery := aiQuantizeBinary(queryEmbedding)
 
 	rows, err := h.db.Query("SELECT id, chunk FROM vectors_ann_chunks")
 	if err != nil {
-		return nil, fmt.Errorf("error querying vectors_ann: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -197,30 +122,30 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		Distance      float32
 	}
 
-	topANNResults := make([]VectorDistance, 0, limit*8)
+	topANNResults := make([]VectorDistance, 0, annLimit)
 	for rows.Next() {
 		var chunkRowID int64
 		var chunkBlob []byte
 		chunkSize := len(quantizedQuery)
 		if err := rows.Scan(&chunkRowID, &chunkBlob); err != nil {
-			return nil, fmt.Errorf("error scanning vector_ann_chunks row: %w", err)
+			return nil, err
 		}
 		for position := 0; position < len(chunkBlob); position += chunkSize {
 			var result VectorDistance
 			embeddingBlob := chunkBlob[position:(position + chunkSize)]
 			distance, err := aiHammingDistance(quantizedQuery, embeddingBlob)
 			if err != nil {
-				return nil, fmt.Errorf("error calculating Hamming distance: %w", err)
+				return nil, err
 			}
 			result.ChunkRowID = chunkRowID
 			result.ChunkPosition = position / chunkSize
 			result.Distance = distance
 
-			if len(topANNResults) < limit*8 {
+			if len(topANNResults) < annLimit {
 				topANNResults = append(topANNResults, result)
 			} else {
-				if distance < topANNResults[limit*8-1].Distance {
-					topANNResults[limit*8-1] = result
+				if distance < topANNResults[annLimit-1].Distance {
+					topANNResults[annLimit-1] = result
 				}
 			}
 			sort.Slice(topANNResults, func(i, j int) bool {
@@ -241,17 +166,14 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 	for _, annResult := range topANNResults {
 		var embeddingBlob []byte
 		err := h.db.QueryRow("SELECT embedding FROM vectors WHERE id = ?", annResult.ID).Scan(&embeddingBlob)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				continue // Skip if no matching vector is found
-			}
-			return nil, fmt.Errorf("error fetching vector embedding: %w", err)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
 		}
 
 		embedding := aiBytesToFloat32(embeddingBlob)
 		distance, err := aiL2Distance(queryEmbedding, embedding)
 		if err != nil {
-			return nil, fmt.Errorf("error calculating L2 distance: %w", err)
+			return nil, err
 		}
 
 		if len(topResults) < limit {
@@ -273,9 +195,6 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 			SELECT
 				a.id as article_id,
 				a.title,
-				a.entity,
-				s.title as section_title,
-				s.id as section_id,
 				h.text
 			FROM hashes h
 			JOIN content c ON c.hash_id = h.id
@@ -288,16 +207,10 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		err := h.db.QueryRow(sqlQuery, vd.ID).Scan(
 			&result.ArticleID,
 			&result.Title,
-			&result.Entity,
-			&result.SectionTitle,
-			&result.SectionID,
 			&result.Text,
 		)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				continue
-			}
-			return nil, fmt.Errorf("error fetching article info: %w", err)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
 		}
 
 		result.Type = "V"
