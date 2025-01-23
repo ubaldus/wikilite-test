@@ -48,7 +48,7 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			)
 			`
 		err = h.db.QueryRow(contentQuery, result.ArticleID, result.ArticleID).Scan(&result.Text)
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
 		result.Type = "T"
@@ -90,7 +90,7 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 			)
 		`
 		err = h.db.QueryRow(articleQuery, contentID).Scan(&result.ArticleID, &result.Title)
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
 		result.Type = "C"
