@@ -34,19 +34,19 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 		}
 
 		contentQuery := `
-					SELECT text
-					FROM hashes
-					WHERE id = (
-						SELECT hash_id
-						FROM content
-						WHERE section_id = (
-							SELECT id
-							FROM sections
-							WHERE article_id = ?
-							LIMIT 1
-						)
-					)
-				`
+			SELECT text
+			FROM hashes
+			WHERE id = (
+				SELECT hash_id
+				FROM content
+				WHERE section_id = (
+					SELECT id
+					FROM sections
+					WHERE article_id = ?
+					LIMIT 1
+				)
+			)
+			`
 		err = h.db.QueryRow(contentQuery, result.ArticleID, result.ArticleID).Scan(&result.Text)
 		if err != nil {
 			return nil, err
@@ -192,19 +192,18 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 	var results []SearchResult
 	for _, vd := range topResults {
 		sqlQuery := `
-			SELECT
-				a.id as article_id,
-				a.title,
-				h.text
-			FROM hashes h
-			JOIN content c ON c.hash_id = h.id
-			JOIN sections s ON s.id = c.section_id
-			JOIN articles a ON a.id = s.article_id
-			WHERE h.id = ?
+			SELECT id, title, (SELECT text FROM hashes WHERE id=?) AS text
+			FROM articles
+			WHERE articles.id = (
+				SELECT article_id 
+				FROM sections 
+				WHERE sections.id = 
+					(SELECT section_id FROM content WHERE content.id=?)
+			)
 		`
 
 		var result SearchResult
-		err := h.db.QueryRow(sqlQuery, vd.ID).Scan(
+		err := h.db.QueryRow(sqlQuery, vd.ID, vd.ID).Scan(
 			&result.ArticleID,
 			&result.Title,
 			&result.Text,
