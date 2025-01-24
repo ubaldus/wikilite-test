@@ -27,8 +27,8 @@ Wikilite provides a comprehensive RESTful API that supports both GET and POST me
 
 * `/api/search`: Combined search across titles, content, and vectors (if enabled)
 * `/api/search/title`: Search only article titles
-* `/api/search/content`: Search article content
-* `/api/search/vectors`: Vector-based semantic search
+* `/api/search/lexical`: Search title and article content
+* `/api/search/semantic`: Vector-based semantic search
 * `/api/article`: Retrieve complete articles by ID
 
 All search endpoints support pagination through the `limit` parameter and return results in a consistent JSON format. For detailed API documentation and examples, please refer to the [API Documentation](API.md).
