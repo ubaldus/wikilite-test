@@ -9,7 +9,7 @@ Default: `http://localhost:35248/api`
 ## API Endpoints
 
 ### 1. Combined Search
-Performs a search across titles, content, and vectors (if enabled).
+Performs a search across lexical and semantic (if enabled).
 
 **Endpoint:** `/search`  
 **Methods:** GET, POST
@@ -38,6 +38,7 @@ Content-Type: application/json
 ```json
 {
   "status": "success",
+  "time": 1.234,
   "results": [
     {
       "article_id": 123,
@@ -79,10 +80,10 @@ Content-Type: application/json
 }
 ```
 
-### 3. Content Search
-Searches article content using full-text search.
+### 3. Lexical Search
+Searches using full-text search.
 
-**Endpoint:** `/search/content`  
+**Endpoint:** `/search/lexical`  
 **Methods:** GET, POST
 
 #### Parameters
@@ -91,12 +92,12 @@ Searches article content using full-text search.
 
 #### GET Request
 ```
-GET /api/search/content?query=linux&limit=5
+GET /api/search/lexical?query=linux&limit=5
 ```
 
 #### POST Request
 ```json
-POST /api/search/content
+POST /api/search/lexical
 Content-Type: application/json
 
 {
@@ -105,10 +106,10 @@ Content-Type: application/json
 }
 ```
 
-### 4. Vector Search
+### 4. Semantic Search
 Searches using vector embeddings. Requires AI to be enabled.
 
-**Endpoint:** `/search/vectors`  
+**Endpoint:** `/search/semantic`  
 **Methods:** GET, POST
 
 #### Parameters
@@ -117,12 +118,12 @@ Searches using vector embeddings. Requires AI to be enabled.
 
 #### GET Request
 ```
-GET /api/search/vectors?query=linux&limit=5
+GET /api/search/semantic?query=linux&limit=5
 ```
 
 #### POST Request
 ```json
-POST /api/search/vectors
+POST /api/search/semantc
 Content-Type: application/json
 
 {
@@ -159,6 +160,7 @@ Content-Type: application/json
 ```json
 {
   "status": "success",
+  "time": 1.234,
   "article": {
     "id": 123,
     "title": "Linux",
@@ -191,6 +193,7 @@ Content-Type: application/json
 ```json
 {
   "status": "success",
+  "time": 1.234,
   "results": [...],  // For search endpoints
   "article": [...]   // For article endpoint
 }
@@ -239,15 +242,16 @@ curl 'http://localhost:35248/api/article?id=123'
 
 ## Configuration Requirements
 
-### Vector Search
-To use vector search, you have two options:
+### Sematic Search
+To use semantic search, you have two options:
 1. **Remote Server**:  
   You can pass the remote server URL using the `--ai-api-url` flag. This allows the system to connect to a remote server where the vector search functionality is hosted.
 2. **Local Model**:
-  Alternatively, you can use a local GGUF model file. The model file must have the same name as the AI model (`--ai-model`) with `.gguf` extension. The file should be located in the same directory as the executable.
+  Alternatively, you can use a local GGUF model file. The model file must have the same name as the AI model (`--ai-model`) with `.gguf` extension. The file should be located in the same directory as the executable or as stated by `--ai-model-path`.
 
 ## Notes
 - All search endpoints support both GET and POST methods
 - The `limit` parameter is shared across all search types
-- Vector search requires additional configuration and services
+- Semantic search requires additional configuration and services
 - Results are deduplicated across search types in combined search
+
