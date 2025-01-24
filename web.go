@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 )
 
 type APIRequest struct {
@@ -24,6 +25,7 @@ type APIResponse struct {
 	Message string          `json:"message,omitempty"`
 	Results []SearchResult  `json:"results,omitempty"`
 	Article []ArticleResult `json:"article,omitempty"`
+	Time    float64         `json:"time"`
 }
 
 type WebServer struct {
@@ -122,13 +124,15 @@ func (s *WebServer) sendAPIError(w http.ResponseWriter, message string, statusCo
 	})
 }
 
-func (s *WebServer) handleGenericAPISearch(w http.ResponseWriter, r *http.Request, searchFunc func(query string, limit int) ([]SearchResult, error), searchType string) {
+func (s *WebServer) handleGenericAPISearch(w http.ResponseWriter, r *http.Request, searchFunc func(query string, limit int) ([]SearchResult, error)) {
 	w.Header().Set("Content-Type", "application/json")
 
 	var request APIRequest
 	var query string
 	var limit int = options.limit
 	var err error
+
+	startTime := time.Now()
 
 	if r.Method == "POST" {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -149,7 +153,7 @@ func (s *WebServer) handleGenericAPISearch(w http.ResponseWriter, r *http.Reques
 			}
 		}
 	}
-	log.Printf("API %s search %s: %s", r.Method, searchType, query)
+	log.Printf("API %s search: %s", r.Method, query)
 
 	if query == "" {
 		s.sendAPIError(w, "Query parameter is required", http.StatusBadRequest)
@@ -158,35 +162,36 @@ func (s *WebServer) handleGenericAPISearch(w http.ResponseWriter, r *http.Reques
 
 	results, err := searchFunc(query, limit)
 	if err != nil {
-		s.sendAPIError(w, fmt.Sprintf("%s search error: %v", searchType, err), http.StatusInternalServerError)
+		s.sendAPIError(w, fmt.Sprintf("Search error: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	json.NewEncoder(w).Encode(APIResponse{
 		Status:  "success",
 		Results: results,
+		Time:    time.Since(startTime).Seconds(),
 	})
 
 }
 
 func (s *WebServer) handleAPISearch(w http.ResponseWriter, r *http.Request) {
-	s.handleGenericAPISearch(w, r, Search, "Search")
+	s.handleGenericAPISearch(w, r, Search)
 }
 
 func (s *WebServer) handleAPISearchTitle(w http.ResponseWriter, r *http.Request) {
-	s.handleGenericAPISearch(w, r, db.SearchTitle, "Title")
+	s.handleGenericAPISearch(w, r, SearchTitle)
 }
 
-func (s *WebServer) handleAPISearchContent(w http.ResponseWriter, r *http.Request) {
-	s.handleGenericAPISearch(w, r, db.SearchContent, "Content")
+func (s *WebServer) handleAPISearchLexical(w http.ResponseWriter, r *http.Request) {
+	s.handleGenericAPISearch(w, r, SearchLexical)
 }
 
-func (s *WebServer) handleAPISearchVectors(w http.ResponseWriter, r *http.Request) {
+func (s *WebServer) handleAPISearchSemantic(w http.ResponseWriter, r *http.Request) {
 	if !ai {
-		s.sendAPIError(w, "Vector search is not enabled", http.StatusBadRequest)
+		s.sendAPIError(w, "Semantic search is not enabled", http.StatusBadRequest)
 		return
 	}
-	s.handleGenericAPISearch(w, r, db.SearchVectors, "Vector")
+	s.handleGenericAPISearch(w, r, SearchSemantic)
 }
 
 func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +199,8 @@ func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
 	var request APIRequest
 	var id int
 	var err error
+
+	startTime := time.Now()
 
 	if r.Method == "POST" {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -224,6 +231,7 @@ func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(APIResponse{
 		Status:  "success",
 		Article: article,
+		Time:    time.Since(startTime).Seconds(),
 	})
 }
 
@@ -233,8 +241,8 @@ func (s *WebServer) Start(host string, port int) error {
 
 	http.HandleFunc("/api/search", s.handleAPISearch)
 	http.HandleFunc("/api/search/title", s.handleAPISearchTitle)
-	http.HandleFunc("/api/search/content", s.handleAPISearchContent)
-	http.HandleFunc("/api/search/vectors", s.handleAPISearchVectors)
+	http.HandleFunc("/api/search/lexical", s.handleAPISearchLexical)
+	http.HandleFunc("/api/search/semantic", s.handleAPISearchSemantic)
 	http.HandleFunc("/api/article", s.handleAPIArticle)
 
 	subFS, err := fs.Sub(assets, "assets/static")

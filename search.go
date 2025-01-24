@@ -14,26 +14,25 @@ import (
 func Search(query string, limit int) ([]SearchResult, error) {
 	var results []SearchResult
 
-	log.Println("FTS title searching", query)
-	titles, err := db.SearchTitle(query, limit)
+	lexical, err := SearchLexical(query, limit)
 	if err != nil {
 		return nil, err
 	}
-	for _, title := range titles {
-		results = append(results, title)
-	}
+	results = append(results, lexical...)
 
-	log.Println("FTS content searching", query)
-	contents, err := db.SearchContent(query, limit)
+	semantic, err := SearchSemantic(query, limit)
 	if err != nil {
 		return nil, err
 	}
-	for _, content := range contents {
-		results = append(results, content)
-	}
+	results = append(results, semantic...)
+
+	return searchOptimize(results, limit), nil
+}
+
+func SearchSemantic(query string, limit int) ([]SearchResult, error) {
+	var results []SearchResult
 
 	if ai {
-		log.Println("Vectors searching", query)
 		vectors, err := db.SearchVectors(query, limit)
 		if err != nil {
 			return nil, err
@@ -43,7 +42,41 @@ func Search(query string, limit int) ([]SearchResult, error) {
 		}
 	}
 
+	return results, nil
+}
+
+func SearchLexical(query string, limit int) ([]SearchResult, error) {
+	var results []SearchResult
+	var err error
+
+	results, err = SearchTitle(query, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	contents, err := db.SearchContent(query, limit)
+	if err != nil {
+		return nil, err
+	}
+	for _, content := range contents {
+		results = append(results, content)
+	}
+
 	return searchOptimize(results, limit), nil
+}
+
+func SearchTitle(query string, limit int) ([]SearchResult, error) {
+	var results []SearchResult
+
+	titles, err := db.SearchTitle(query, limit)
+	if err != nil {
+		return nil, err
+	}
+	for _, title := range titles {
+		results = append(results, title)
+	}
+
+	return results, nil
 }
 
 func SearchCli() error {

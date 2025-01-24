@@ -246,12 +246,12 @@ function createSearchCheckboxes() {
     checkboxContainer.className = 'mt-2 text-center';
 
     const searchTypes = [
-        { id: 'titleSearch', label: 'Title', value: 'title', checked: true },
-        { id: 'contentSearch', label: 'Lexical', value: 'content', checked: true },
+        { id: 'titleSearch', label: 'Title', value: 'title', checked: false },
+        { id: 'lexicalSearch', label: 'Lexical', value: 'lexical', checked: true },
     ];
 
     if (ai) {
-        searchTypes.push({ id: 'vectorSearch', label: 'Semantic', value: 'vectors', checked: true });
+        searchTypes.push({ id: 'semanticSearch', label: 'Semantic', value: 'semantic', checked: true });
     }
 
     searchTypes.forEach(type => {
@@ -350,8 +350,12 @@ function performSearch(query, type, onComplete) {
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                displayResults(data.results, type);
-                onComplete(data.results);
+                if (data.results) {
+                  displayResults(data.results, type);
+                  onComplete(data.results);
+                } else {
+                  onComplete([]);
+                }
             } else {
                 console.error('Error:', data.message);
                 onComplete([]);
@@ -418,11 +422,7 @@ function displayResults(results, type) {
             divContent.appendChild(titleLink);
             divContent.appendChild(text);
 
-            const typeSup = document.createElement('div');
-            typeSup.innerHTML = `<sup>[${type.toUpperCase().substring(0, 1)}]</sup>`;
-
             li.appendChild(divContent);
-            li.appendChild(typeSup);
             container.appendChild(li);
         });
     }

@@ -86,7 +86,7 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 				SELECT article_id 
 				FROM sections 
 				WHERE sections.id = 
-					(SELECT section_id FROM content WHERE content.id=?)
+					(SELECT section_id FROM content WHERE content.hash_id=?)
 			)
 		`
 		err = h.db.QueryRow(articleQuery, contentID).Scan(&result.ArticleID, &result.Title)
@@ -198,7 +198,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 				SELECT article_id 
 				FROM sections 
 				WHERE sections.id = 
-					(SELECT section_id FROM content WHERE content.id=?)
+					(SELECT section_id FROM content WHERE content.hash_id=? LIMIT 1)
 			)
 		`
 
