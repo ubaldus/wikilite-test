@@ -87,6 +87,7 @@ func (h *DBHandler) initializeDB() error {
 		`CREATE INDEX IF NOT EXISTS idx_sections_article_id ON sections(article_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_content_section_id ON content(section_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_hashes_id ON hashes(id)`,
+		`CREATE INDEX IF NOT EXISTS idx_content_hash_id ON content(hash_id)`,
 	}
 	for _, query := range queries {
 		if _, err := h.db.Exec(query); err != nil {
