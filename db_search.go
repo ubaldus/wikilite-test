@@ -4,7 +4,6 @@ package main
 
 import (
 	"database/sql"
-	"sort"
 )
 
 func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, error) {
@@ -130,13 +129,16 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		if err := rows.Scan(&chunkRowID, &chunkBlob); err != nil {
 			return nil, err
 		}
+
 		for position := 0; position < len(chunkBlob); position += chunkSize {
 			var result VectorDistance
 			embeddingBlob := chunkBlob[position:(position + chunkSize)]
+
 			distance, err := aiHammingDistance(quantizedQuery, embeddingBlob)
 			if err != nil {
 				return nil, err
 			}
+
 			result.ChunkRowID = chunkRowID
 			result.ChunkPosition = position / chunkSize
 			result.Distance = distance
@@ -144,14 +146,15 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 			if len(topANNResults) < annLimit {
 				topANNResults = append(topANNResults, result)
 			} else {
-				if distance < topANNResults[annLimit-1].Distance {
-					topANNResults[annLimit-1] = result
+				for i := range topANNResults {
+					if topANNResults[i].Distance > distance {
+						topANNResults[i] = result
+						break
+					}
 				}
 			}
-			sort.Slice(topANNResults, func(i, j int) bool {
-				return topANNResults[i].Distance < topANNResults[j].Distance
-			})
 		}
+
 	}
 
 	for k, v := range topANNResults {
@@ -179,15 +182,14 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		if len(topResults) < limit {
 			topResults = append(topResults, VectorDistance{ID: annResult.ID, Distance: float32(distance)})
 		} else {
-			if distance < topResults[len(topResults)-1].Distance {
-				topResults[len(topResults)-1] = VectorDistance{ID: annResult.ID, Distance: float32(distance)}
+			for i := range topResults {
+				if topResults[i].Distance > distance {
+					topResults[i] = VectorDistance{ID: annResult.ID, Distance: float32(distance)}
+					break
+				}
 			}
 		}
 	}
-
-	sort.Slice(topResults, func(i, j int) bool {
-		return topResults[i].Distance < topResults[j].Distance
-	})
 
 	var results []SearchResult
 	for _, vd := range topResults {
