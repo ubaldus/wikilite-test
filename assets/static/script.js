@@ -28,7 +28,7 @@ async function fetchArticle(articleId) {
         const response = await fetch(`/api/article?id=${articleId}`);
         const data = await response.json();
         if (data.status === 'success') {
-            article = data.article[0];
+            article = data.article;
             displayArticle();
             if (isVoiceSearch) {
                 speechSynthesis.cancel();

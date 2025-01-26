@@ -21,11 +21,11 @@ type APIRequest struct {
 }
 
 type APIResponse struct {
-	Status  string          `json:"status"`
-	Message string          `json:"message,omitempty"`
-	Results []SearchResult  `json:"results,omitempty"`
-	Article []ArticleResult `json:"article,omitempty"`
-	Time    float64         `json:"time"`
+	Status  string         `json:"status"`
+	Message string         `json:"message,omitempty"`
+	Results []SearchResult `json:"results,omitempty"`
+	Article ArticleResult  `json:"article,omitempty"`
+	Time    float64        `json:"time"`
 }
 
 type WebServer struct {
@@ -99,7 +99,7 @@ func (s *WebServer) handleHTMLArticle(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		results, err := db.ArticleGet(id)
+		result, err := db.ArticleGet(id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -107,10 +107,10 @@ func (s *WebServer) handleHTMLArticle(w http.ResponseWriter, r *http.Request) {
 
 		s.executeTemplate(w, "article.html", struct {
 			Language string
-			Results  []ArticleResult
+			Result   ArticleResult
 		}{
 			Language: options.language,
-			Results:  results,
+			Result:   result,
 		})
 	}
 }

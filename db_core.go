@@ -309,7 +309,11 @@ func (h *DBHandler) ArticlePut(article OutputArticle) error {
 	return tx.Commit()
 }
 
-func (h *DBHandler) ArticleGet(articleID int) ([]ArticleResult, error) {
+func (h *DBHandler) ArticleGet(articleID int) (ArticleResult, error) {
+	article := ArticleResult{
+		Sections: []ArticleResultSection{},
+	}
+
 	sqlQuery := `
 		SELECT 
 			a.id AS article_id,
@@ -334,15 +338,12 @@ func (h *DBHandler) ArticleGet(articleID int) ([]ArticleResult, error) {
 
 	rows, err := h.db.Query(sqlQuery, articleID)
 	if err != nil {
-		return nil, fmt.Errorf("article query error: %v", err)
+		return article, fmt.Errorf("article query error: %v", err)
 	}
 	defer rows.Close()
 
-	articleMap := make(map[int]*ArticleResult)
-
 	for rows.Next() {
 		var (
-			articleID    int
 			title        string
 			entity       string
 			sectionID    int
@@ -351,26 +352,18 @@ func (h *DBHandler) ArticleGet(articleID int) ([]ArticleResult, error) {
 		)
 
 		if err := rows.Scan(
-			&articleID,
+			&article.ID,
 			&title,
 			&entity,
 			&sectionTitle,
 			&sectionID,
 			&content,
 		); err != nil {
-			return nil, fmt.Errorf("error scanning result: %v", err)
+			return article, fmt.Errorf("error scanning result: %v", err)
 		}
 
-		article, exists := articleMap[articleID]
-		if !exists {
-			article = &ArticleResult{
-				Title:    title,
-				Entity:   entity,
-				ID:       articleID,
-				Sections: []ArticleResultSection{},
-			}
-			articleMap[articleID] = article
-		}
+		article.Title = title
+		article.Entity = entity
 
 		var section *ArticleResultSection
 		for i, sec := range article.Sections {
@@ -392,10 +385,9 @@ func (h *DBHandler) ArticleGet(articleID int) ([]ArticleResult, error) {
 		section.Texts = append(section.Texts, content)
 	}
 
-	results := make([]ArticleResult, 0, len(articleMap))
-	for _, article := range articleMap {
-		results = append(results, *article)
+	if article.ID == 0 {
+		return article, fmt.Errorf("article not found")
 	}
 
-	return results, nil
+	return article, nil
 }

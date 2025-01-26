@@ -99,18 +99,15 @@ func SearchCli() error {
 					log.Fatal("CLI error: ", err)
 				}
 
-				for _, entry := range article {
-					fmt.Printf("%s\n\n", entry.Title)
+				fmt.Printf("%s\n\n", article.Title)
 
-					for _, section := range entry.Sections {
-						fmt.Printf("%s\n\n", section.Title)
-						for _, text := range section.Texts {
-							fmt.Println(text)
-						}
-						fmt.Println()
+				for _, section := range article.Sections {
+					fmt.Printf("%s\n\n", section.Title)
+					for _, text := range section.Texts {
+						fmt.Println(text)
 					}
+					fmt.Println()
 				}
-				continue
 			}
 		}
 
