@@ -43,9 +43,6 @@ Content-Type: application/json
     {
       "article_id": 123,
       "title": "Linux",
-      "entity": "Q388",
-      "section_id": 321,
-      "section_title": "History",
       "text": "Linux was created in 1991...",
       "type": "T",
       "power": 1.234
