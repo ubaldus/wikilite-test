@@ -5,8 +5,8 @@
     <meta name="author" content="ubaldo@eja.it">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="//eja.it/logo/eja.png" rel="icon" type="image/png">
-    <link href="bootstrap.min.css" rel="stylesheet">
-    <link href="bootstrap-icons.css" rel="stylesheet">
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/bootstrap-icons.css" rel="stylesheet">
     <style>
         .highlight {
             background-color: #fff3cd;
@@ -47,6 +47,13 @@
 </head>
 <body>
     <div class="container mt-4">
+        <!-- Microphone -->
+        <div class="position-fixed top-0 end-0">
+          <button type="button" id="startSpeech" class="btn">
+            <i class="bi bi-mic-fill fs-4"></i>
+          </button>
+        </div>
+
         <!-- Search Section -->
         <div id="searchSection">
             <h1 class="mb-4 text-center">Wikilite</h1>
@@ -69,11 +76,6 @@
                 <ol class="list-group list-group-numbered"></ol>
             </div>
 
-            <div class="position-fixed top-0 end-0">
-                <button type="button" id="startSpeech" class="btn">
-                    <i class="bi bi-mic-fill fs-4"></i>
-                </button>
-            </div>
         </div>
 
         <!-- Article Section -->
@@ -108,7 +110,11 @@
         </div>
     </div>
 
-    <script src="bootstrap.bundle.min.js"></script>
-    <script src="script.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="js/globals.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/search.js"></script>
+    <script src="js/article.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>

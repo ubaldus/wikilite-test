@@ -5,7 +5,7 @@
 <form id="searchForm" class="mb-4" action="?" method="post">
     <div class="input-group">
         <input type="text" name="query" class="form-control flex-grow-1" value="{{.Query}}">
-        <input type="number" name="limit" class="form-control text-center" value="{{.Limit}}" size="3" style="width: 5ch; flex: none;">
+        <input type="number" name="limit" class="form-control text-center" value="{{.Limit}}" size="3" style="width: 8ch; flex: none;">
         <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
     </div>
 </form>
@@ -28,7 +28,7 @@
  {{end}}
 
 <script>
-  if ('speechSynthesis' in window && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+  if (/Chrome/.test(navigator.userAgent) && 'speechSynthesis' in window && 'webkitSpeechRecognition' in window) {
 		document.body.innerHTML += `<div class="position-fixed top-0 end-0"><a href="/static/?language={{.Language}}&ai={{.AI}}" class="btn"><i class="bi bi-universal-access-circle fs-4"></i></a></div>`;
 	}
 </script>
