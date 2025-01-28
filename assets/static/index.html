@@ -16,25 +16,6 @@
             background-color: #e2e3e5;
             transition: background-color 0.3s;
         }
-        .control-buttons {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-            z-index: 2000;
-        }
-        .control-button {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .button-row {
-            display: flex;
-            gap: 5px;
-        }
         .blinking {
           animation: blink 1s infinite;
         }
@@ -49,7 +30,7 @@
     <div class="container mt-4">
         <!-- Microphone -->
         <div class="position-fixed top-0 end-0">
-          <button type="button" id="startSpeech" class="btn">
+          <button type="button" id="speechButton" class="btn">
             <i class="bi bi-mic-fill fs-4"></i>
           </button>
         </div>
@@ -60,10 +41,24 @@
 
             <form id="searchForm" class="mb-4" action="?" method="post">
                 <div class="input-group">
-                    <input type="text" name="query" class="form-control flex-grow-1" id="speechInput" value="">
+                    <input type="text" name="query" class="form-control flex-grow-1" id="searchInput" value="">
                     <input type="number" name="limit" class="form-control text-center" id="limit" value="5" size="3" style="width: 8ch; flex: none;">
                     <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
                 </div>
+								<div class="mt-2 text-center">
+									<div class="form-check form-check-inline" id="titleSearchCheck">
+										<input class="form-check-input" type="checkbox" id="titleSearch" name="searchType" value="title">
+										<label class="form-check-label" for="titleSearch">Title</label>
+									</div>
+									<div class="form-check form-check-inline" id="lexicalSearchCheck">
+										<input class="form-check-input" type="checkbox" id="lexicalSearch" name="searchType" value="lexical" checked>
+										<label class="form-check-label" for="lexicalSearch">Lexical</label>
+									</div>
+									<div class="form-check form-check-inline" id="semanticSearchCheck">
+										<input class="form-check-input" type="checkbox" id="semanticSearch" name="searchType" value="semantic">
+										<label class="form-check-label" for="semanticSearch">Semantic</label>
+									</div>
+								</div>
             </form>
 
             <div id="loadingSpinner" class="text-center mb-4 d-none">
@@ -84,30 +79,6 @@
             <div id="articleTextContent" class="mb-4" style="white-space: pre-wrap;"></div>
         </div>
 
-        <!-- Control Buttons -->
-        <div class="control-buttons d-none">
-            <div class="button-row">
-                <button class="btn btn-sm btn-outline-secondary control-button" id="prevSection">
-                    <i class="bi bi-chevron-up"></i>
-                </button>
-            </div>
-            <div class="button-row">
-                <button class="btn btn-sm btn-outline-secondary control-button" id="prevText">
-                    <i class="bi bi-chevron-left"></i>
-                </button>
-                <button class="btn btn-sm btn-primary control-button" id="playPause">
-                    <i class="bi bi-play-fill" id="playPauseIcon"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary control-button" id="nextText">
-                    <i class="bi bi-chevron-right"></i>
-                </button>
-            </div>
-            <div class="button-row">
-                <button class="btn btn-sm btn-outline-secondary control-button" id="nextSection">
-                    <i class="bi bi-chevron-down"></i>
-                </button>
-            </div>
-        </div>
     </div>
 
     <script src="js/bootstrap.bundle.min.js"></script>

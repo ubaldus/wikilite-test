@@ -1,29 +1,35 @@
 // Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
-async function fetchArticle(articleId) {
+
+async function articleFetch(articleId) {
     try {
         document.getElementById('loadingSpinner').classList.remove('d-none');
+        if (App.isVoiceSearch) {
+            beepLoadingStop = beepLoading();
+        }
         const response = await fetch(`/api/article?id=${articleId}`);
         const data = await response.json();
         if (data.status === 'success') {
             App.article = data.article;
-            displayArticle();
+            articleDisplay();
             if (App.isVoiceSearch) {
-                speechSynthesis.cancel();
-                App.isReadingResults = false;
-                playPause();
+                articlePlay();
             }
         }
     } catch (error) {
         console.error('Error fetching article:', error);
     } finally {
+        if (App.isVoiceSearch) {
+            beepLoadingStop();
+        }
         document.getElementById('loadingSpinner').classList.add('d-none');
     }
 }
 
-function displayArticle() {
-    document.getElementById('articleTitle').textContent = App.article.title;
+function articleDisplay() {
+    App.isArticle = true;
     document.title = App.article.title;
+    document.getElementById('articleTitle').textContent = App.article.title;
     const container = document.getElementById('articleTextContent');
     container.innerHTML = '';
     App.article.sections.forEach((section, sectionIndex) => {
@@ -41,138 +47,89 @@ function displayArticle() {
         });
         container.appendChild(sectionDiv);
     });
-    toggleSearchAndArticleVisibility(true);
-    setupArticleCommands();
+    document.getElementById('searchSection').classList.add('d-none');
+    document.getElementById('articleContent').classList.remove('d-none');
 }
 
-function toggleSearchAndArticleVisibility(showArticle) {
-    const searchSection = document.getElementById('searchSection');
-    const articleContent = document.getElementById('articleContent');
-
-    if (showArticle) {
-        searchSection.classList.add('d-none');
-        articleContent.classList.remove('d-none');
-    } else {
-        searchSection.classList.remove('d-none');
-        articleContent.classList.add('d-none');
-    }
-}
-
-function setupArticleCommands() {
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = App.language;
-    recognition.continuous = false;
-
-    recognition.onresult = (event) => {
-        const command = event.results[0][0].transcript.toLowerCase();
-        handleArticleCommand(command);
-    };
-
-    recognition.onerror = (event) => {
-        console.error("Speech Recognition Error:", event.error);
-    };
-
-    recognition.onend = () => {
-        if (App.isPlaying) {
-					recognition.start();
+async function articlePlay() {
+    App.isPlaying = true;
+    for (; App.currentSection < App.article.sections.length; App.currentSection++) {
+        if (!App.isPlaying) {
+            break;
         }
-    };
-
-    document.getElementById('startSpeech').addEventListener('click', () => {
-				speakResult(App.sentences[App.language].articlePrompt);
-        recognition.start();
-    });
-}
-
-function playPause() {
-    App.isPlaying = !App.isPlaying;
-    App.isLastItem = false;
-    if (App.isPlaying) {
-        speakCurrent();
-    } else {
-        speechSynthesis.cancel();
+        await articlePlayCurrent(true);
+        for (App.currentText = 0; App.currentText < App.article.sections[App.currentSection].texts.length; App.currentText++) {
+            if (!App.isPlaying) {
+                break;
+            }
+            await articlePlayCurrent();
+        }
+    }
+    if (App.currentSection > 0) {
+        App.currentSection--
     }
 }
 
-function nextSection() {
+async function articleStop() {
+    App.isPlaying = false;
+    await TTSStop();
+}
+
+function articlePlayNextSection() {
+    App.currentText = 0;
     if (App.currentSection < App.article.sections.length - 1) {
         App.currentSection++;
-        App.currentText = 0;
-        App.isLastItem = false;
-        if (App.isPlaying) {
-            speakCurrent(true);
-        } else {
-            highlightCurrent(true);
-        }
+    } else {
+        App.currentSection = 0;
     }
+    articlePlayCurrent(true);
 }
 
-function prevSection() {
+function articlePlayPreviousSection() {
+    App.currentText = 0;
     if (App.currentSection > 0) {
         App.currentSection--;
-        App.currentText = 0;
-        App.isLastItem = false;
-        if (App.isPlaying) {
-            speakCurrent(true);
-        } else {
-            highlightCurrent(true);
-        }
+    } else {
+        App.currentSection = App.article.sections.length - 1;
     }
+    articlePlayCurrent(true);
 }
 
-function nextText() {
+function articlePlayNextText() {
     if (App.currentText < App.article.sections[App.currentSection].texts.length - 1) {
         App.currentText++;
-        App.isLastItem = false;
     } else if (App.currentSection < App.article.sections.length - 1) {
         App.currentSection++;
         App.currentText = 0;
-        App.isLastItem = false;
     } else {
-        App.isLastItem = true;
-        App.isPlaying = false;
-        return;
+        App.currentSection = 0;
+        App.currentText = 0;
     }
-    if (App.isPlaying) {
-        speakCurrent();
-    } else {
-        highlightCurrent();
-    }
+    articlePlayCurrent();
 }
 
-function prevText() {
+function articlePlayPreviousText() {
     if (App.currentText > 0) {
         App.currentText--;
     } else if (App.currentSection > 0) {
         App.currentSection--;
         App.currentText = App.article.sections[App.currentSection].texts.length - 1;
     }
-    App.isLastItem = false;
-    if (App.isPlaying) {
-        speakCurrent();
-    } else {
-        highlightCurrent();
-    }
+    articlePlayCurrent();
 }
 
-function speakCurrent(section = false) {
-    const currentElement = document.getElementById(`text-${App.currentSection}-${App.currentText}`);
-    const sectionTitle = document.getElementById(`section-${App.currentSection}`);
-    const articleTitle = document.getElementById('articleTitle');
-
+async function articlePlayCurrent(section = false) {
     if (section) {
-        if (sectionTitle) {
-            speak(sectionTitle.textContent, true);
-            highlightCurrent(true);
+        highlightCurrent(true);
+        if (App.currentSection == 0) {
+            await TTS(App.article.title);
+        } else {
+            await TTS(App.article.sections[App.currentSection].title);
         }
+        await sleep(1500);
     } else {
-        if (App.currentSection === 0 && App.currentText === 0 && !App.isSpeakingSection) {
-            speak(articleTitle.textContent, true);
-            highlightCurrent(true);
-        } else if (currentElement) {
-            speak(currentElement.textContent, false);
-            highlightCurrent(false);
-        }
+        highlightCurrent(false);
+        await TTS(App.article.sections[App.currentSection].texts[App.currentText]);
     }
 }
 
@@ -181,57 +138,25 @@ function highlightCurrent(section = false) {
         el.classList.remove('highlight', 'highlight-section');
     });
     if (section) {
-        const sectionTitle = document.getElementById(`section-${App.currentSection}`);
+        let sectionTitle = document.getElementById(`section-${App.currentSection}`);
+        if (App.currentSection == 0) {
+            sectionTitle = document.getElementById('articleTitle');
+        }
         if (sectionTitle) {
             sectionTitle.classList.add('highlight-section');
-            sectionTitle.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            sectionTitle.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
         }
     } else {
         const currentElement = document.getElementById(`text-${App.currentSection}-${App.currentText}`);
         if (currentElement) {
             currentElement.classList.add('highlight');
-            currentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            currentElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
         }
     }
 }
-
-function handleArticleCommand(command) {
-		console.log("STT article:", command)
-    const commands = App.commands[App.language];
-    const helpMessage = App.sentences[App.language].articleHelp;
-
-    switch (command) {
-				case commands.articlePlay:
-						App.isPlaying = true;
-						speakCurrent();
-						break
-        case commands.articleRepeat:
-            speakCurrent();
-            break;
-				case commands.articleStop:
-						App.isPlaying = false;
-						speechSynthesis.cancel();
-						break;						
-        case commands.articleNext:
-            nextText();
-            break;
-        case commands.articlePrevious:
-            prevText();
-            break;
-        case commands.articleNextSection:
-            nextSection();
-            break;
-        case commands.articlePreviousSection:
-            prevSection();
-            break;
-        case commands.articleHome:
-            speechSynthesis.cancel();
-						document.location.reload();
-            break;
-        default:
-						speak(helpMessage);
-            break;
-    }
-}
-
-

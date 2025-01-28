@@ -1,191 +1,154 @@
 // Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
-function speakResult(text, onEnd = null) {
-    if (App.utterance) {
-        speechSynthesis.cancel();
+
+let audioContext = null;
+
+function initAudioContext() {
+    if (!audioContext) {
+        audioContext = new(window.AudioContext || window.webkitAudioContext)();
     }
-    App.utterance = new SpeechSynthesisUtterance(text);
-    App.utterance.lang = App.language;
-    App.utterance.onend = () => {
-        if (onEnd) onEnd();
-    };
-    speechSynthesis.speak(App.utterance);
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+    return audioContext;
 }
 
-function speak(text, isSectionTitle = false) {
-    if (App.utterance) {
-        speechSynthesis.cancel();
+function beep({
+    frequency = 440,
+    type = 'sine',
+    duration = 200,
+    volume = 0.5,
+    repeat = false,
+    interval = 1000
+}) {
+    initAudioContext();
+    let timeoutId = null;
+
+    function playBeep(time) {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, time);
+        gainNode.gain.setValueAtTime(volume, time);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.start(time);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, time + duration / 1000);
+        oscillator.stop(time + duration / 1000);
     }
-    App.utterance = new SpeechSynthesisUtterance(text);
-    App.utterance.lang = App.language;
-    App.isSpeakingSection = isSectionTitle;
-    if (isSectionTitle) {
-        App.utterance.volume = 1.0;
-        App.utterance.rate = 0.9;
-        text += '... ... ...';
-    }
-    App.utterance.onend = () => {
-        if (App.isPlaying && !App.isLastItem) {
-            if (App.isSpeakingSection) {
-                setTimeout(() => {
-                    App.currentText = 0;
-                    const firstTextElement = document.getElementById(`text-${App.currentSection}-${App.currentText}`);
-                    if (firstTextElement) {
-                        speak(firstTextElement.textContent, false);
-                        highlightCurrent(false);
-                    }
-                }, 2000);
-            } else {
-                if (App.currentText === App.article.sections[App.currentSection].texts.length - 1) {
-                    if (App.currentSection < App.article.sections.length - 1) {
-                        App.currentSection++;
-                        App.currentText = 0;
-                        const sectionTitle = document.getElementById(`section-${App.currentSection}`);
-                        if (sectionTitle) {
-                            speak(sectionTitle.textContent, true);
-                            highlightCurrent(true);
-                        }
-                    } else {
-                        App.isLastItem = true;
-                        App.isPlaying = false;
-                    }
-                } else {
-                    nextText();
-                }
-            }
+
+    let time = audioContext.currentTime;
+    playBeep(time);
+
+    if (repeat) {
+        function scheduleBeep() {
+            time += interval / 1000;
+            playBeep(time);
+            timeoutId = setTimeout(scheduleBeep, interval);
         }
-    };
-    speechSynthesis.speak(App.utterance);
+        timeoutId = setTimeout(scheduleBeep, interval);
+
+        return () => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+        };
+    }
 }
 
-function beepInitializeContext() {
-    if (!App.beepAudioContext) {
-        App.beepAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+async function TTS(text, lang = App.language) {
+    return new Promise((resolve) => {
+        if (window.speechSynthesis) {
+            speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = lang;
+            utterance.onend = () => resolve();
+            utterance.onerror = () => resolve();
+            speechSynthesis.speak(utterance);
+        } else {
+            resolve();
+        }
+    });
+}
+
+async function TTSStop() {
+    if (window.speechSynthesis) {
+        await speechSynthesis.cancel();
     }
-    if (App.beepAudioContext.state === 'suspended') {
-        App.beepAudioContext.resume();
-    }
+}
+
+async function STT(lang = App.language) {
+    await TTSStop();
+    return new Promise((resolve) => {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            resolve('');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = lang;
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript.toLowerCase();
+            console.log("STT", transcript);
+            resolve(transcript);
+        };
+
+        recognition.onerror = () => {
+            resolve('');
+        };
+
+        recognition.onend = () => {
+            beepStop();
+            App.speechButton.disabled = false;
+            resolve('');
+        };
+
+        App.speechButton.disabled = true;
+        beepStart();
+        recognition.start();
+    });
+}
+
+function beepStart() {
+    return beep({
+        frequency: 880,
+        duration: 100,
+        volume: 0.3
+    });
+}
+
+function beepStop() {
+    return beep({
+        frequency: 660,
+        duration: 300,
+        volume: 0.3
+    });
+}
+
+function beepLoading() {
+    return beep({
+        frequency: 440,
+        duration: 50,
+        volume: 0.2,
+        repeat: true,
+        interval: 1000
+    });
 }
 
 function beepAlert() {
-    beepInitializeContext();
-
-    const errorOscillator = App.beepAudioContext.createOscillator();
-    const errorGainNode = App.beepAudioContext.createGain();
-
-    errorOscillator.type = 'square';
-    errorOscillator.frequency.setValueAtTime(310, App.beepAudioContext.currentTime);
-    errorGainNode.gain.setValueAtTime(0.25, App.beepAudioContext.currentTime);
-
-    errorOscillator.connect(errorGainNode);
-    errorGainNode.connect(App.beepAudioContext.destination);
-
-    errorOscillator.start();
-    errorOscillator.stop(App.beepAudioContext.currentTime + 0.5);
+    return beep({
+        frequency: 310,
+        type: 'square',
+        duration: 500,
+        volume: 0.25
+    });
 }
 
-function beepLoadingStart() {
-    beepInitializeContext();
-
-    function playBeep(time) {
-        App.beepLoadingOscillator = App.beepAudioContext.createOscillator();
-        App.beepLoadingGainNode = App.beepAudioContext.createGain();
-        App.beepLoadingOscillator.type = 'sine';
-        App.beepLoadingOscillator.frequency.setValueAtTime(1000, time);
-        App.beepLoadingGainNode.gain.setValueAtTime(0, time);
-        App.beepLoadingOscillator.connect(App.beepLoadingGainNode);
-        App.beepLoadingGainNode.connect(App.beepAudioContext.destination);
-        App.beepLoadingOscillator.start(time);
-        App.beepLoadingGainNode.gain.setValueAtTime(1, time);
-        App.beepLoadingGainNode.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
-        App.beepLoadingGainNode.gain.setValueAtTime(0, time + 0.06);
-        App.beepLoadingOscillator.stop(time + 0.06);
-    }
-
-    let time = App.beepAudioContext.currentTime;
-
-    function scheduleBeep() {
-        playBeep(time);
-        time += 1.0;
-        App.beepTimeoutId = setTimeout(scheduleBeep, (time - App.beepAudioContext.currentTime) * 1000);
-    }
-
-    scheduleBeep();
-}
-
-function beepLoadingStop() {
-    if (App.beepTimeoutId) {
-        clearTimeout(App.beepTimeoutId);
-        App.beepTimeoutId = null;
-    }
-    if (App.beepLoadingOscillator) {
-        App.beepLoadingOscillator.stop();
-        App.beepLoadingOscillator.disconnect();
-        App.beepLoadingOscillator = null;
-    }
-    if (App.beepLoadingGainNode) {
-        App.beepLoadingGainNode.disconnect();
-        App.beepLoadingGainNode = null;
-    }
-}
-
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-
-    recognition.lang = App.language;
-    recognition.continuous = false;
-
-    recognition.onstart = () => {
-        if (App.startSpeechButton) App.startSpeechButton.disabled = true;
-        if (App.isReadingResults) {
-            speechSynthesis.cancel();
-            App.isReadingResults = false;
-        }
-        App.startSpeechButton.classList.add('blinking');
-    };
-
-    recognition.onresult = (event) => {
-        const speechResult = event.results[0][0].transcript;
-				console.log("STT search:", speechResult)
-        App.speechInput.value = speechResult;
-        if (App.startSpeechButton) {
-            App.startSpeechButton.disabled = false;
-            App.startSpeechButton.classList.remove('blinking');
-        }
-        App.isVoiceSearch = true;
-        speakResult(App.sentences[App.language].searching, () => {
-            submitSearch(null);
-        });
-    };
-
-    recognition.onerror = (event) => {
-        if (App.startSpeechButton) {
-            App.startSpeechButton.disabled = false;
-            App.startSpeechButton.classList.remove('blinking');
-        }
-        console.error("Speech Recognition Error:", event.error);
-        App.isVoiceSearch = false;
-    };
-
-    recognition.onend = () => {
-        if (App.startSpeechButton) {
-            App.startSpeechButton.disabled = false;
-            App.startSpeechButton.classList.remove('blinking');
-        }
-    };
-
-    if (App.startSpeechButton) {
-        App.startSpeechButton.addEventListener('click', () => {
-            speakResult(App.sentences[App.language].searchPrompt, () => {
-                recognition.start();
-            });
-        });
-    }
-} else {
-    document.getElementById("startSpeech").style.display = "none";
-}
-
-if (App.startSpeechButton && !/Chrome/.test(navigator.userAgent)) {
-    App.startSpeechButton.style.display = 'none';
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }

@@ -1,56 +1,20 @@
 // Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
-function createSearchCheckboxes() {
-    const checkboxContainer = document.createElement('div');
-    checkboxContainer.className = 'mt-2 text-center';
-
-    const searchTypes = [
-        { id: 'titleSearch', label: 'Title', value: 'title', checked: false },
-        { id: 'lexicalSearch', label: 'Lexical', value: 'lexical', checked: true },
-    ];
-
-    if (App.ai) {
-        searchTypes.push({ id: 'semanticSearch', label: 'Semantic', value: 'semantic', checked: true });
-    }
-
-    searchTypes.forEach(type => {
-        const formCheck = document.createElement('div');
-        formCheck.className = 'form-check form-check-inline';
-
-        const input = document.createElement('input');
-        input.className = 'form-check-input';
-        input.type = 'checkbox';
-        input.id = type.id;
-        input.name = 'searchType';
-        input.value = type.value;
-        if (type.checked) {
-            input.checked = true;
-        }
-
-        const label = document.createElement('label');
-        label.className = 'form-check-label';
-        label.htmlFor = type.id;
-        label.textContent = type.label;
-
-        formCheck.appendChild(input);
-        formCheck.appendChild(label);
-        checkboxContainer.appendChild(formCheck);
-    });
-
-    App.searchForm.appendChild(checkboxContainer);
-}
 
 function performSearch(query, type, onComplete) {
     const endpoint = `/api/search/${type}`;
-    const payload = { query: query, limit: parseInt(document.getElementById("limit").value) };
+    const payload = {
+        query: query,
+        limit: parseInt(document.getElementById("limit").value)
+    };
 
     fetch(endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-    })
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        })
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
@@ -75,6 +39,7 @@ function displayResults(results, type) {
     const container = document.getElementById('resultsContainer').querySelector('ol');
 
     if (results.length > 0) {
+        App.isSearchResults = true;
         results.forEach((result, index) => {
             const li = document.createElement('li');
             li.className = 'list-group-item d-flex justify-content-between align-items-start';
@@ -87,7 +52,7 @@ function displayResults(results, type) {
             titleLink.className = 'text-decoration-none';
             titleLink.textContent = result.title;
             titleLink.addEventListener('click', () => {
-                fetchArticle(result.article_id);
+                articleFetch(result.article_id);
                 document.getElementById('resultsContainer').classList.add('d-none');
                 document.getElementById('articleContent').classList.remove('d-none');
             });
@@ -104,7 +69,7 @@ function displayResults(results, type) {
     }
 }
 
-function readNextResultTitle() {
+async function readNextResultTitle() {
     if (!App.isReadingResults) return;
 
     const results = document.querySelectorAll('#resultsContainer ol li');
@@ -113,39 +78,32 @@ function readNextResultTitle() {
             results[App.currentSpeakingResultIndex - 1].classList.remove('highlight');
         }
 
+        results[App.currentSpeakingResultIndex].classList.add('highlight');
         const title = results[App.currentSpeakingResultIndex].querySelector('a').textContent;
+        await TTS(title);
+        await TTS(App.locale[App.language].sentences.searchOpen)
 
-        speakResult(title, () => {
-            results[App.currentSpeakingResultIndex].classList.add('highlight');
-            results[App.currentSpeakingResultIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                speakResult(App.sentences[App.language].searchOpen, () => {
-                    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-                    recognition.lang = App.language;
-                    recognition.continuous = false;
-
-                    recognition.onresult = (event) => {
-                        const response = event.results[0][0].transcript.toLowerCase();
-												console.log("STT results:", response)
-                        if (response === App.commands[App.language].searchOpen) {
-                            results[App.currentSpeakingResultIndex].querySelector('a').click();
-                        }
-                    };
-
-										recognition.onend = () => {
-											App.currentSpeakingResultIndex++;
-											if (App.currentSpeakingResultIndex < results.length) {
-												readNextResultTitle();
-											} else {
-												results[App.currentSpeakingResultIndex - 1].classList.remove('highlight');
-												App.currentSpeakingResultIndex = 0;
-												readNextResultTitle();
-											}
-										};          
-
-                    recognition.start();
-                });
-        });
+        let command = await STT();
+        if (App.locale[App.language].commands.searchOpen.includes(command)) {
+            results[App.currentSpeakingResultIndex].querySelector('a').click();
+        } else if (App.locale[App.language].commands.searchBack.includes(command)) {
+            results[App.currentSpeakingResultIndex].classList.remove('highlight');
+            if (App.currentSpeakingResultIndex > 0) {
+                App.currentSpeakingResultIndex--;
+            } else {
+                App.currentSpeakingResultIndex = results.length - 1;
+            }
+            readNextResultTitle();
+        } else {
+            App.currentSpeakingResultIndex++;
+            if (App.currentSpeakingResultIndex < results.length) {
+                readNextResultTitle();
+            } else {
+                results[App.currentSpeakingResultIndex - 1].classList.remove('highlight');
+                App.currentSpeakingResultIndex = 0;
+                readNextResultTitle();
+            }
+        }
     }
 }
 
@@ -158,7 +116,7 @@ function submitSearch(event) {
     document.getElementById('articleTitle').textContent = '';
     document.getElementById('resultsContainer').style.display = 'block';
 
-    const query = App.speechInput.value;
+    const query = App.searchInput.value;
     const searchTypes = Array.from(document.querySelectorAll('input[name="searchType"]:checked')).map(el => el.value);
 
     if (query && searchTypes.length > 0) {
@@ -166,7 +124,7 @@ function submitSearch(event) {
         document.getElementById('resultsContainer').querySelector('.alert')?.remove();
         document.getElementById('loadingSpinner').classList.remove('d-none');
         if (App.isVoiceSearch) {
-            beepLoadingStart();
+            App.beepLoadingStop = beepLoading();
         }
 
         let completedSearches = 0;
@@ -181,6 +139,9 @@ function submitSearch(event) {
 
                 if (completedSearches === searchTypes.length) {
                     document.getElementById('loadingSpinner').classList.add('d-none');
+                    if (App.isVoiceSearch) {
+                        App.beepLoadingStop();
+                    }
 
                     if (totalResults === 0) {
                         const noResults = document.createElement('div');
@@ -188,22 +149,19 @@ function submitSearch(event) {
                         noResults.textContent = `No results found for "${query}"`;
                         document.getElementById('resultsContainer').appendChild(noResults);
                         if (App.isVoiceSearch) {
-                            beepLoadingStop();
+                            App.isVoiceSearch = false;
                             beepAlert();
-                            speakResult(App.sentences[App.language].searchNoResults);
+                            TTS(App.locale[App.language].sentences.searchNoResults, App.language);
+
                         }
                     } else if (totalResults === 1) {
-                        fetchArticle(allResults[0].article_id);
+                        articleFetch(allResults[0].article_id);
                         document.getElementById('resultsContainer').classList.add('d-none');
                         document.getElementById('articleContent').classList.remove('d-none');
-                        if (App.isVoiceSearch) {
-                            beepLoadingStop();
-                        }
                     } else {
                         App.currentSpeakingResultIndex = 0;
                         App.isReadingResults = App.isVoiceSearch;
                         if (App.isVoiceSearch) {
-                            beepLoadingStop();
                             readNextResultTitle();
                         }
                     }

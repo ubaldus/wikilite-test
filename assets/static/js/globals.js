@@ -1,65 +1,110 @@
 // Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
 
+
 window.App = {
     article: null,
     currentSection: 0,
     currentText: 0,
+    currentSpeakingResultIndex: 0,
     isPlaying: false,
-    isLastItem: false,
-    isSpeakingSection: false,
     isReadingResults: false,
     isVoiceSearch: false,
+    isArticle: false,
+    isSearchResults: false,
+    beepLoadingStop: null,
+    searchInput: document.getElementById('searchInput'),
+    searchForm: document.getElementById('searchForm'),
+    speechButton: document.getElementById('speechButton'),
     language: new URLSearchParams(window.location.search).get('language') || 'en',
     ai: new URLSearchParams(window.location.search).get('ai') === 'true',
-    utterance: null,
-    beepAudioContext: null,
-    beepLoadingOscillator: null,
-    beepLoadingGainNode: null,
-    beepTimeoutId: null,
-    currentSpeakingResultIndex: 0,
-    speechInput: document.getElementById('speechInput'),
-    startSpeechButton: document.getElementById('startSpeech'),
-    searchForm: document.getElementById('searchForm'),
-    sentences: {
+    locale: {
         'en': {
-            searchPrompt: "What do you want to search?",
-            searching: "Searching...",
-            searchNoResults: "I am sorry, I didn't find anything.",
-            searchOpen: "Do you want to open this?",
-            articleHelp: "You can say: play, stop, repeat, next, previous, next section, previous section, or home.",
-						articlePrompt: "How can I help you?"
+            'sentences': {
+                searchPrompt: "What do you want to search?",
+                searching: "Searching...",
+                searchNoResults: "I am sorry, I didn't find anything.",
+                searchOpen: "Do you want to open this?",
+                articleHelp: "You can say: play, stop, repeat, next, previous, next section, previous section, or home.",
+                articlePrompt: "How can I help you?"
+            },
+            'commands': {
+                searchOpen: ["yes"],
+                searchBack: ["back"],
+                articlePlay: ["play", "continue"],
+                articleStop: ["stop"],
+                articleRepeat: ["repeat"],
+                articleNext: ["next"],
+                articlePrevious: ["previous"],
+                articleNextSection: ["next section"],
+                articlePreviousSection: ["previous section"],
+                articleHome: "home"
+            },
         },
         'it': {
-            searchPrompt: "Cosa vorresti cercare?",
-            searching: "sto cercando...",
-            searchNoResults: "Mi dispiace ma non ho trovato niente.",
-            searchOpen: "Vuoi lèggere quest'articolo?",
-            articleHelp: "Puoi dire: leggi, pausa, ripeti, indietro, avanti, sezione successiva, sezione precedente o ricarica.",
-						articlePrompt: "Dimmi?"
+            'sentences': {
+                searchPrompt: "Cosa vorresti cercare?",
+                searching: "sto cercando...",
+                searchNoResults: "Mi dispiace ma non ho trovato niente.",
+                searchOpen: "Vuoi lèggere quest'articolo?",
+                articleHelp: "Puoi dire: leggi, pausa, ripeti, indietro, avanti, sezione successiva, sezione precedente o ricarica.",
+                articlePrompt: "Dimmi?"
+            },
+            'commands': {
+                searchOpen: ["sì", "si", "leggi", "leggilo", "sì leggilo", "sì leggi"],
+                searchBack: ["indietro"],
+                articlePlay: ["leggi", "continua"],
+                articleStop: ["stop", "pausa"],
+                articleRepeat: ["ripeti"],
+                articleNext: ["avanti"],
+                articlePrevious: ["indietro"],
+                articleNextSection: ["sezione successiva"],
+                articlePreviousSection: ["sezione precedente"],
+                articleHome: ["ricarica"]
+            },
         },
-     },
-    commands: {
-        'en': {
-						searchOpen: "yes",
-						articlePlay: "play",
-						articleStop: "stop",
-            articleRepeat: "repeat",
-            articleNext: "next",
-            articlePrevious: "previous",
-            articleNextSection: "next section",
-            articlePreviousSection: "previous section",
-            articleHome: "home"
+        'es': {
+            'sentences': {
+                searchPrompt: "¿Qué quieres buscar?",
+                searching: "Buscando...",
+                searchNoResults: "Lo siento, no he encontrado nada.",
+                searchOpen: "¿Quieres abrir esto?",
+                articleHelp: "Puedes decir: reproducir, parar, repetir, siguiente, anterior, siguiente sección, sección anterior o inicio.",
+                articlePrompt: "¿Cómo puedo ayudarte?"
+            },
+            'commands': {
+                searchOpen: ["sí", "abrir"],
+                searchBack: ["atrás"],
+                articlePlay: ["reproducir", "continuar"],
+                articleStop: ["parar", "detener"],
+                articleRepeat: ["repetir"],
+                articleNext: ["siguiente"],
+                articlePrevious: ["anterior"],
+                articleNextSection: ["siguiente sección"],
+                articlePreviousSection: ["sección anterior"],
+                articleHome: ["inicio"]
+            },
         },
-        'it': {
-						searchOpen: "sì",
-						articlePlay: "leggi",
-						articleStop: "pausa",
-            articleRepeat: "ripeti",
-            articleNext: "avanti",
-            articlePrevious: "indietro",
-            articleNextSection: "sezione successiva",
-            articlePreviousSection: "sezione precedente",
-            articleHome: "ricarica"
+        'de': {
+            'sentences': {
+                searchPrompt: "Was möchten Sie suchen?",
+                searching: "Suche läuft...",
+                searchNoResults: "Es tut mir leid, ich habe nichts gefunden.",
+                searchOpen: "Möchten Sie das öffnen?",
+                articleHelp: "Sie können sagen: abspielen, stoppen, wiederholen, nächster, vorheriger, nächster Abschnitt, vorheriger Abschnitt oder Startseite.",
+                articlePrompt: "Wie kann ich Ihnen helfen?"
+            },
+            'commands': {
+                searchOpen: ["ja", "öffnen"],
+                searchBack: ["zurück"],
+                articlePlay: ["abspielen", "weiter"],
+                articleStop: ["stopp", "anhalten"],
+                articleRepeat: ["wiederholen"],
+                articleNext: ["nächster"],
+                articlePrevious: ["vorheriger"],
+                articleNextSection: ["nächster Abschnitt"],
+                articlePreviousSection: ["vorheriger Abschnitt"],
+                articleHome: ["Startseite"]
+            },
         },
-     }
+    }
 };
