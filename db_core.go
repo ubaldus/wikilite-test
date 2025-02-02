@@ -223,6 +223,14 @@ func (h *DBHandler) Optimize() error {
 	return nil
 }
 
+func (h *DBHandler) IsEmpty() bool {
+	var count int
+	if err := h.db.QueryRow("SELECT COUNT(*) FROM hashes").Scan(&count); err != nil {
+		return true
+	}
+	return count == 0
+}
+
 func (h *DBHandler) SetupPut(key, value string) (err error) {
 	_, err = h.db.Exec("INSERT OR REPLACE INTO setup (key, value) VALUES (?, ?)", key, value)
 	return

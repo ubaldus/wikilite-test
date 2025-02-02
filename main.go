@@ -145,12 +145,7 @@ func main() {
 	}
 
 	if options.web {
-		server, err := NewWebServer()
-		if err != nil {
-			log.Fatalf("Error creating web server: %v\n", err)
-		}
-
-		if err := server.Start(options.webHost, options.webPort); err != nil {
+		if err := WebStart(options.webHost, options.webPort); err != nil {
 			log.Fatalf("Error starting web server: %v\n", err)
 		}
 	}
