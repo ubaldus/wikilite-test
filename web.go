@@ -331,7 +331,7 @@ func setupProgressHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *WebServer) handleHome(w http.ResponseWriter, r *http.Request) {
 	if db.IsEmpty() {
-		http.ServeFile(w, r, "assets/static/setup.html")
+		http.Redirect(w, r, "/static/setup.html", http.StatusFound)
 	} else {
 		s.handleHTMLSearch(w, r)
 	}
