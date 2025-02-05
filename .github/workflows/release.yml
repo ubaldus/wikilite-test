@@ -24,8 +24,11 @@ jobs:
           GOARCH=amd64 \
           go build -tags=fts5 -ldflags="-s -w" -o wikilite .
 
+      - name: Copy script to the root directory
+        run: cp scripts/start.command .
+
       - name: Compress artifact
-        run: tar -czvf wikilite-macos-amd64.tar.gz wikilite
+        run: tar -czvf wikilite-macos-amd64.tar.gz wikilite start.command
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -56,8 +59,11 @@ jobs:
           GOARCH=arm64 \
           go build -tags=fts5 -ldflags="-s -w" -o wikilite .
 
+      - name: Copy script to the root directory
+        run: cp scripts/start.command .
+
       - name: Compress artifact
-        run: tar -czvf wikilite-macos-arm64.tar.gz wikilite
+        run: tar -czvf wikilite-macos-arm64.tar.gz wikilite start.command
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -88,8 +94,11 @@ jobs:
           GOARCH=amd64 \
           go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
 
+      - name: Copy script to the root directory
+        run: cp scripts/start.sh .
+
       - name: Compress artifact
-        run: tar -czvf wikilite-linux-amd64.tar.gz wikilite
+        run: tar -czvf wikilite-linux-amd64.tar.gz wikilite start.sh
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -120,8 +129,11 @@ jobs:
           GOARCH=arm64 \
           go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
 
+      - name: Copy script to the root directory
+        run: cp scripts/start.sh .
+
       - name: Compress artifact
-        run: tar -czvf wikilite-linux-arm64.tar.gz wikilite
+        run: tar -czvf wikilite-linux-arm64.tar.gz wikilite start.sh
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -157,9 +169,12 @@ jobs:
           GOARCH=arm \
           GOARM=7 \
           go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
+
+      - name: Copy script to the root directory
+        run: cp scripts/start.sh .
           
       - name: Compress artifact
-        run: tar -czvf wikilite-linux-arm32.tar.gz wikilite
+        run: tar -czvf wikilite-linux-arm32.tar.gz wikilite start.sh
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -190,8 +205,11 @@ jobs:
           $env:GOARCH = "amd64"; 
           go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe .
 
+      - name: Copy script to the root directory
+        run: cp scripts/start.bat .
+
       - name: Compress artifact
-        run: Compress-Archive -Path wikilite.exe -DestinationPath wikilite-windows-amd64.zip
+        run: Compress-Archive -Path wikilite.exe, start.bat -DestinationPath wikilite-windows-amd64.zip
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -222,8 +240,11 @@ jobs:
           $env:GOARCH = "arm64"; 
           go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe .
 
+      - name: Copy script to the root directory
+        run: cp scripts/start.bat .
+
       - name: Compress artifact
-        run: Compress-Archive -Path wikilite.exe -DestinationPath wikilite-windows-arm64.zip
+        run: Compress-Archive -Path wikilite.exe, start.bat -DestinationPath wikilite-windows-arm64.zip
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
