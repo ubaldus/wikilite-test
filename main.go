@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.9.4"
+const Version = "0.9.5"
 
 type Config struct {
 	aiApiKey      string
@@ -91,7 +91,11 @@ func main() {
 	}
 
 	if options.setup {
-		Setup()
+		if _, err := os.Stat(options.dbPath); err == nil {
+			log.Println("A database is already present in the current directory, skipping setup.")
+		} else {
+			Setup()
+		}
 	}
 
 	if options.log || options.logFile != "" {

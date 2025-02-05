@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -32,11 +31,6 @@ type APIResponse struct {
 type WebServer struct {
 	template *template.Template
 }
-
-var SetupProgressMap = struct {
-	sync.RWMutex
-	m map[string]float64
-}{m: make(map[string]float64)}
 
 func NewWebServer() (*WebServer, error) {
 	tmpl, err := template.ParseFS(assets, "assets/templates/*")
@@ -241,104 +235,8 @@ func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleSetup(w http.ResponseWriter, r *http.Request) {
-	if db.IsEmpty() {
-		action := r.URL.Query().Get("action")
-		switch action {
-		case "list":
-			setupListHandler(w, r)
-		case "install":
-			setupInstallHandler(w, r)
-		case "progress":
-			setupProgressHandler(w, r)
-		default:
-			http.Error(w, "Invalid action parameter", http.StatusBadRequest)
-		}
-	} else {
-		http.Error(w, "Setup not available now", http.StatusForbidden)
-	}
-}
-
-func setupListHandler(w http.ResponseWriter, r *http.Request) {
-	datasetInfo, err := SetupFetchDatasetInfo()
-	if err != nil {
-		http.Error(w, "Error fetching dataset info", http.StatusInternalServerError)
-		return
-	}
-
-	dbFiles := SetupFilterDBFiles(datasetInfo.Siblings)
-	json.NewEncoder(w).Encode(dbFiles)
-}
-
-func setupInstallHandler(w http.ResponseWriter, r *http.Request) {
-	dbFile := r.URL.Query().Get("file")
-	if dbFile == "" {
-		http.Error(w, "dbFile parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	go func() {
-		err := SetupGunzipFile(dbFile, "wikilite.db", func(progress float64) {
-			SetupProgressMap.Lock()
-			SetupProgressMap.m[dbFile] = progress
-			SetupProgressMap.Unlock()
-		})
-		if err != nil {
-			log.Println("Error downloading and extracting file:", err)
-			return
-		}
-
-		ggufFile := SetupGetGGUFFileName(dbFile)
-		if ggufFile != "" {
-			err = SetupDownloadFile("models/"+ggufFile, ggufFile)
-			if err != nil {
-				fmt.Println("Error downloading .gguf file:", err)
-				return
-			}
-		}
-	}()
-
-	fmt.Fprintf(w, "Downloading and extracting %s", dbFile)
-}
-
-func setupProgressHandler(w http.ResponseWriter, r *http.Request) {
-	dbFile := r.URL.Query().Get("file")
-	if dbFile == "" {
-		http.Error(w, "dbFile parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
-	for {
-		SetupProgressMap.RLock()
-		progress, exists := SetupProgressMap.m[dbFile]
-		SetupProgressMap.RUnlock()
-		if exists {
-			fmt.Fprintf(w, "data: %.2f\n\n", progress)
-			w.(http.Flusher).Flush()
-			if progress >= 100 {
-				SetupProgressMap.Lock()
-				delete(SetupProgressMap.m, dbFile)
-				SetupProgressMap.Unlock()
-				return
-			}
-		}
-	}
-}
-
-func (s *WebServer) handleHome(w http.ResponseWriter, r *http.Request) {
-	if db.IsEmpty() {
-		http.Redirect(w, r, "/static/setup.html", http.StatusFound)
-	} else {
-		s.handleHTMLSearch(w, r)
-	}
-}
-
 func (s *WebServer) Start(host string, port int) error {
-	http.HandleFunc("/", s.handleHome)
+	http.HandleFunc("/", s.handleHTMLSearch)
 	http.HandleFunc("/article", s.handleHTMLArticle)
 
 	http.HandleFunc("/api/search", s.handleAPISearch)
@@ -346,7 +244,6 @@ func (s *WebServer) Start(host string, port int) error {
 	http.HandleFunc("/api/search/lexical", s.handleAPISearchLexical)
 	http.HandleFunc("/api/search/semantic", s.handleAPISearchSemantic)
 	http.HandleFunc("/api/article", s.handleAPIArticle)
-	http.HandleFunc("/api/setup", handleSetup)
 
 	subFS, err := fs.Sub(assets, "assets/static")
 	if err != nil {

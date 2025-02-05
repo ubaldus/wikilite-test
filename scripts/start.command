@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cmd="./wikilite --web --log"
+cmd="./wikilite --log --setup --web"
 
 cd "$(dirname "$0")" && $cmd && exit 0
 

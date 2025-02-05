@@ -1,6 +1,6 @@
 @echo off
 
-set cmd=wikilite.exe --web --log
+set cmd=wikilite.exe --log --setup --web
 
 cd /d "%~dp0"
 %cmd%
