@@ -48,7 +48,7 @@ The semantic search acts as a powerful complement to FTS5, allowing you to get m
 Pre-built databases for several languages are also available on [Hugging Face](https://huggingface.co/datasets/eja/wikilite/tree/main). You can use these databases directly with Wikilite by downloading and decompressing them.
 
 ### Installing Pre-built Databases
-You can install a pre-built database by using the `--setup` option from the command line. When you run this command, a list of available databases will be shown, allowing you to select and install the desired database along with the corresponding GGUF model. Note that all databases in the "fts" folder are full-text search only and do not support semantic search.
+You can install a pre-built database by using the `--setup` option from the command line. When you run this command, a list of available databases will be shown, allowing you to select and install the desired database along with the corresponding GGUF model. Note that all databases in the "lexical" folder are full-text search only and do not support semantic search.
 
 #### Example command:
 ```bash
