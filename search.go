@@ -108,18 +108,21 @@ func SearchCli() error {
 					}
 					fmt.Println()
 				}
+				query = ""
 			}
 		}
 
-		results, err := Search(query, options.limit)
-		if err != nil {
-			log.Fatal("CLI error: ", err)
-		}
+		if query != "" {
+			results, err := Search(query, options.limit)
+			if err != nil {
+				log.Fatal("CLI error: ", err)
+			}
 
-		articles = make(map[int]int)
-		for i, result := range results {
-			articles[i+1] = result.ArticleID
-			fmt.Printf("% 3d [%s] %s\n", i+1, result.Type, result.Title)
+			articles = make(map[int]int)
+			for i, result := range results {
+				articles[i+1] = result.ArticleID
+				fmt.Printf("% 3d [%s] %s\n", i+1, result.Type, result.Title)
+			}
 		}
 	}
 }

@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -48,8 +50,9 @@ func SetupFetchDatasetInfo() (*SetupDatasetInfo, error) {
 
 func SetupFilterDBFiles(siblings []SetupSibling) []SetupSibling {
 	var dbFiles []SetupSibling
+	partRegex := regexp.MustCompile(`\.db(-\d+)?\.gz$`)
 	for _, sibling := range siblings {
-		if strings.HasSuffix(sibling.Rfilename, ".db.gz") {
+		if partRegex.MatchString(sibling.Rfilename) {
 			dbFiles = append(dbFiles, sibling)
 		}
 	}
@@ -65,12 +68,18 @@ func SetupGetGGUFFileName(dbFile string) string {
 	return ""
 }
 
-func SetupDownloadFile(file string, outputPath string) error {
+func SetupDownloadFile(file string, outputPath string, progressCallback func(float64)) error {
 	resp, err := http.Get(SetupDBBaseUrl + file)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download file: server returned status %d", resp.StatusCode)
+	}
+
+	totalSize := resp.ContentLength
 
 	out, err := os.Create(outputPath)
 	if err != nil {
@@ -78,7 +87,9 @@ func SetupDownloadFile(file string, outputPath string) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body)
+	teeReader := io.TeeReader(resp.Body, &SetupProgressReader{totalSize: totalSize, progressCallback: progressCallback})
+
+	_, err = io.Copy(out, teeReader)
 	return err
 }
 
@@ -103,7 +114,7 @@ func SetupGunzipFile(file string, outputPath string, progressCallback func(float
 	}
 	defer gzReader.Close()
 
-	out, err := os.Create(outputPath)
+	out, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %v", err)
 	}
@@ -136,12 +147,24 @@ func Setup() {
 
 	dbFiles := SetupFilterDBFiles(datasetInfo.Siblings)
 	if len(dbFiles) == 0 {
-		fmt.Println("No .db.gz files found.")
+		fmt.Println("No valid database files found.")
 		return
 	}
 
-	for i, dbFile := range dbFiles {
-		fmt.Printf("%d. %s\n", i+1, dbFile.Rfilename)
+	fileGroups := make(map[string][]SetupSibling)
+	for _, dbFile := range dbFiles {
+		baseName := strings.Split(dbFile.Rfilename, ".db")[0]
+		fileGroups[baseName] = append(fileGroups[baseName], dbFile)
+	}
+
+	var groupKeys []string
+	for key := range fileGroups {
+		groupKeys = append(groupKeys, key)
+	}
+
+	sort.Strings(groupKeys)
+	for i, key := range groupKeys {
+		fmt.Printf("%d. %s\n", i+1, key)
 	}
 
 	fmt.Print("Choose a file by number: ")
@@ -149,29 +172,32 @@ func Setup() {
 	input, _ := reader.ReadString('\n')
 	var choice int
 	_, err = fmt.Sscanf(input, "%d", &choice)
-	if err != nil || choice < 1 || choice > len(dbFiles) {
+	if err != nil || choice < 1 || choice > len(groupKeys) {
 		fmt.Println("Invalid choice.")
 		return
 	}
 
-	selectedDB := dbFiles[choice-1].Rfilename
+	selectedGroup := fileGroups[groupKeys[choice-1]]
 
 	if _, err := os.Stat("wikilite.db"); err == nil {
 		fmt.Println("A wikilite.db already exists in the current directory.")
 		return
 	}
 
-	fmt.Println("Downloading and extracting", selectedDB)
-	err = SetupGunzipFile(selectedDB, "wikilite.db", func(progress float64) {
-		fmt.Printf("Downloaded %.2f%%\n", progress)
-	})
-	if err != nil {
-		fmt.Println("Error downloading and extracting file:", err)
-		return
+	for _, part := range selectedGroup {
+		fmt.Println("Downloading and extracting", part.Rfilename)
+		err = SetupGunzipFile(part.Rfilename, "wikilite.db", func(progress float64) {
+			fmt.Printf("\rDownloaded %.2f%%", progress)
+		})
+		fmt.Println()
+		if err != nil {
+			fmt.Println("Error downloading and extracting file:", err)
+			return
+		}
 	}
 	fmt.Println("Saved as wikilite.db")
 
-	ggufFile := SetupGetGGUFFileName(selectedDB)
+	ggufFile := SetupGetGGUFFileName(selectedGroup[0].Rfilename)
 	if ggufFile != "" {
 		if _, err := os.Stat(ggufFile); err == nil {
 			fmt.Printf("%s already exists in the current directory.\n", ggufFile)
@@ -179,7 +205,10 @@ func Setup() {
 		}
 
 		fmt.Println("Downloading gguf model:", ggufFile)
-		err = SetupDownloadFile("models/"+ggufFile, ggufFile)
+		err = SetupDownloadFile("models/"+ggufFile, ggufFile, func(progress float64) {
+			fmt.Printf("\rDownloaded %.2f%%", progress)
+		})
+		fmt.Println()
 		if err != nil {
 			fmt.Println("Error downloading .gguf file:", err)
 			return
