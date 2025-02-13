@@ -37,6 +37,14 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		return
 	}
 
+	if err = db.SetupPut("modelPrefixSave", options.aiModelPrefixSave); err != nil {
+		return
+	}
+
+	if err = db.SetupPut("modelPrefixSearch", options.aiModelPrefixSearch); err != nil {
+		return
+	}
+
 	err = h.db.QueryRow("SELECT COUNT(*) FROM hashes WHERE id NOT IN (select vectors_id from vectors_ann_index)").Scan(&totalCount)
 	if err != nil {
 		return fmt.Errorf("error getting total count of hashes: %w", err)
@@ -105,7 +113,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		ann_chunk_rowid++
 
 		for _, hashData := range hashesData {
-			embedding, err := aiEmbeddings(hashData.Text)
+			embedding, err := aiEmbeddings(options.aiModelPrefixSave + hashData.Text)
 			if err != nil {
 				log.Printf("Embedding generation error for hash %s: %v", hashData.Hash, err)
 				problematicIDs = append(problematicIDs, hashData.ID)

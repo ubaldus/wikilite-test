@@ -101,7 +101,7 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 
 func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, error) {
 	annLimit := limit * 8
-	queryEmbedding, err := aiEmbeddings(query)
+	queryEmbedding, err := aiEmbeddings(options.aiModelPrefixSearch + query)
 	if err != nil {
 		return nil, err
 	}

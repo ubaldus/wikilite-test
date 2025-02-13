@@ -122,6 +122,10 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 		options.aiModel = model
 	}
 
+	if modelPrefixSearch, err := handler.SetupGet("modelPrefixSearch"); err == nil && modelPrefixSearch != "" {
+		options.aiModelPrefixSearch = modelPrefixSearch
+	}
+
 	return handler, nil
 }
 

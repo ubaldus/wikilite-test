@@ -10,27 +10,29 @@ import (
 	"os"
 )
 
-const Version = "0.9.6"
+const Version = "0.10.0"
 
 type Config struct {
-	aiApiKey      string
-	aiApiUrl      string
-	aiModel       string
-	aiModelPath   string
-	aiSync        bool
-	cli           bool
-	dbPath        string
-	language      string
-	limit         int
-	log           bool
-	logFile       string
-	setup         bool
-	web           bool
-	webHost       string
-	webPort       int
-	webTlsPrivate string
-	webTlsPublic  string
-	wikiImport    string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
+	aiApiKey            string
+	aiApiUrl            string
+	aiModel             string
+	aiModelPath         string
+	aiModelPrefixSave   string
+	aiModelPrefixSearch string
+	aiSync              bool
+	cli                 bool
+	dbPath              string
+	language            string
+	limit               int
+	log                 bool
+	logFile             string
+	setup               bool
+	web                 bool
+	webHost             string
+	webPort             int
+	webTlsPrivate       string
+	webTlsPublic        string
+	wikiImport          string //https://dumps.wikimedia.org/other/enterprise_html/runs/...
 }
 
 var (
@@ -45,6 +47,8 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.aiApiUrl, "ai-api-url", "", "AI API base url")
 	flag.StringVar(&options.aiModel, "ai-model", "all-minilm", "AI embedding model")
 	flag.StringVar(&options.aiModelPath, "ai-model-path", "", "AI embedding local model file (default \"all-minilm.gguf\")")
+	flag.StringVar(&options.aiModelPrefixSave, "ai-model-prefix-save", "", "AI embedding model task prefix to import a document")
+	flag.StringVar(&options.aiModelPrefixSearch, "ai-model-prefix-search", "", "AI embedding model task prefix to perform a search")
 	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI generate embeddings")
 
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
