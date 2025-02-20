@@ -114,7 +114,7 @@ func SetupGunzipFile(file string, outputPath string, progressCallback func(float
 	}
 	defer gzReader.Close()
 
-	out, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	out, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %v", err)
 	}
@@ -136,6 +136,33 @@ func (pr *SetupProgressReader) Write(p []byte) (int, error) {
 		pr.progressCallback(progress)
 	}
 	return n, nil
+}
+
+func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressCallback func(string, float64)) error {
+	for _, part := range selectedGroup {
+		err := SetupGunzipFile(part.Rfilename, options.dbPath, func(progress float64) {
+			if progressCallback != nil {
+				progressCallback(part.Rfilename, progress)
+			}
+		})
+		if err != nil {
+			return fmt.Errorf("error downloading and extracting file %s: %v", part.Rfilename, err)
+		}
+	}
+
+	ggufFile := SetupGetGGUFFileName(selectedGroup[0].Rfilename)
+	if ggufFile != "" {
+		if _, err := os.Stat(ggufFile); err == nil {
+			return fmt.Errorf("%s already exists in the current directory", ggufFile)
+		}
+
+		err := SetupDownloadFile("models/"+ggufFile, ggufFile, nil)
+		if err != nil {
+			return fmt.Errorf("error downloading .gguf file: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func Setup() {
@@ -179,40 +206,19 @@ func Setup() {
 
 	selectedGroup := fileGroups[groupKeys[choice-1]]
 
-	if _, err := os.Stat("wikilite.db"); err == nil {
-		fmt.Println("A wikilite.db already exists in the current directory.")
+	if _, err := os.Stat(options.dbPath); err == nil {
+		fmt.Println("A db already exists, please remove it and try again.")
 		return
 	}
 
-	for _, part := range selectedGroup {
-		fmt.Println("Downloading and extracting", part.Rfilename)
-		err = SetupGunzipFile(part.Rfilename, "wikilite.db", func(progress float64) {
-			fmt.Printf("\rDownloaded %.2f%%", progress)
-		})
-		fmt.Println()
-		if err != nil {
-			fmt.Println("Error downloading and extracting file:", err)
-			return
-		}
+	err = SetupDownloadAndExtract(selectedGroup, func(file string, progress float64) {
+		fmt.Printf("\rDownloading %s: %.2f%%", file, progress)
+	})
+	fmt.Println()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
 	}
-	fmt.Println("Saved as wikilite.db")
 
-	ggufFile := SetupGetGGUFFileName(selectedGroup[0].Rfilename)
-	if ggufFile != "" {
-		if _, err := os.Stat(ggufFile); err == nil {
-			fmt.Printf("%s already exists in the current directory.\n", ggufFile)
-			return
-		}
-
-		fmt.Println("Downloading gguf model:", ggufFile)
-		err = SetupDownloadFile("models/"+ggufFile, ggufFile, func(progress float64) {
-			fmt.Printf("\rDownloaded %.2f%%", progress)
-		})
-		fmt.Println()
-		if err != nil {
-			fmt.Println("Error downloading .gguf file:", err)
-			return
-		}
-		fmt.Println("Saved as", ggufFile)
-	}
+	fmt.Println("Setup ready.")
 }
