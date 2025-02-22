@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -152,11 +153,12 @@ func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressCallback func
 
 	ggufFile := SetupGetGGUFFileName(selectedGroup[0].Rfilename)
 	if ggufFile != "" {
-		if _, err := os.Stat(ggufFile); err == nil {
-			return fmt.Errorf("%s already exists in the current directory", ggufFile)
+		ggufFilePath := filepath.Join(options.aiModelPath, ggufFile)
+		if _, err := os.Stat(ggufFilePath); err == nil {
+			return fmt.Errorf("%s already exists", ggufFilePath)
 		}
 
-		err := SetupDownloadFile("models/"+ggufFile, ggufFile, nil)
+		err := SetupDownloadFile("models/"+ggufFile, ggufFilePath, nil)
 		if err != nil {
 			return fmt.Errorf("error downloading .gguf file: %v", err)
 		}

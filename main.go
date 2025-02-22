@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.11.1"
+const Version = "0.11.2"
 
 type Config struct {
 	aiApiKey            string
@@ -46,7 +46,7 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
 	flag.StringVar(&options.aiApiUrl, "ai-api-url", "", "AI API base url")
 	flag.StringVar(&options.aiModel, "ai-model", "all-minilm", "AI embedding model")
-	flag.StringVar(&options.aiModelPath, "ai-model-path", "", "AI embedding local model file (default \"all-minilm.gguf\")")
+	flag.StringVar(&options.aiModelPath, "ai-model-path", "", "AI embedding local model folder path")
 	flag.StringVar(&options.aiModelPrefixSave, "ai-model-prefix-save", "", "AI embedding model task prefix to import a document")
 	flag.StringVar(&options.aiModelPrefixSearch, "ai-model-prefix-search", "", "AI embedding model task prefix to perform a search")
 	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI generate embeddings")

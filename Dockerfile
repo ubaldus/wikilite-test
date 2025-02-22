@@ -14,4 +14,4 @@ VOLUME /app/data
 
 EXPOSE 35248
 
-ENTRYPOINT ["./wikilite", "--db", "/app/data/wikilite.db", "--web", "--web-host", "0.0.0.0"]
+ENTRYPOINT ["./wikilite", "--db", "/app/data/wikilite.db", "--ai-model-path", "/app/data", "--web", "--web-host", "0.0.0.0"]

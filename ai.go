@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/bits"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/ollama/ollama/llama"
@@ -25,10 +26,7 @@ var aiLocal struct {
 
 func aiInit() error {
 	if options.aiApiUrl == "" {
-		aiModelPath := options.aiModelPath
-		if aiModelPath == "" {
-			aiModelPath = options.aiModel + ".gguf"
-		}
+		aiModelPath := filepath.Join(options.aiModelPath, options.aiModel) + ".gguf"
 		if _, err := os.Stat(aiModelPath); err != nil {
 			return err
 		} else {
