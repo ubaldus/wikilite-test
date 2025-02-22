@@ -139,15 +139,17 @@ func (pr *SetupProgressReader) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressCallback func(string, float64)) error {
+func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressDbCallback func(string, float64), progressAiCallback func(string, float64)) error {
 	for _, part := range selectedGroup {
 		err := SetupGunzipFile(part.Rfilename, options.dbPath, func(progress float64) {
-			if progressCallback != nil {
-				progressCallback(part.Rfilename, progress)
+			if progressDbCallback != nil {
+				progressDbCallback(part.Rfilename, progress)
 			}
 		})
 		if err != nil {
 			return fmt.Errorf("error downloading and extracting file %s: %v", part.Rfilename, err)
+		} else {
+			db, _ = NewDBHandler(options.dbPath)
 		}
 	}
 
@@ -158,9 +160,17 @@ func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressCallback func
 			return fmt.Errorf("%s already exists", ggufFilePath)
 		}
 
-		err := SetupDownloadFile("models/"+ggufFile, ggufFilePath, nil)
+		err := SetupDownloadFile("models/"+ggufFile, ggufFilePath, func(progress float64) {
+			if progressAiCallback != nil {
+				progressAiCallback(ggufFile, progress)
+			}
+		})
 		if err != nil {
 			return fmt.Errorf("error downloading .gguf file: %v", err)
+		} else {
+			if err := aiInit(); err == nil {
+				ai = true
+			}
 		}
 	}
 
@@ -214,6 +224,11 @@ func Setup() {
 	}
 
 	err = SetupDownloadAndExtract(selectedGroup, func(file string, progress float64) {
+		fmt.Printf("\rDownloading %s: %.2f%%", file, progress)
+		if progress >= 100 {
+			fmt.Println()
+		}
+	}, func(file string, progress float64) {
 		fmt.Printf("\rDownloading %s: %.2f%%", file, progress)
 	})
 	fmt.Println()

@@ -325,7 +325,7 @@ func setupInstallHandler(w http.ResponseWriter, r *http.Request) {
 		SetupProgressMap.Lock()
 		SetupProgressMap.m[file] = progress
 		SetupProgressMap.Unlock()
-	})
+	}, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error: %v", err), http.StatusInternalServerError)
 		return
@@ -335,9 +335,9 @@ func setupInstallHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func setupProgressHandler(w http.ResponseWriter, r *http.Request) {
-	dbFile := r.URL.Query().Get("file")
-	if dbFile == "" {
-		http.Error(w, "dbFile parameter is required", http.StatusBadRequest)
+	file := r.URL.Query().Get("file")
+	if file == "" {
+		http.Error(w, "file parameter is required", http.StatusBadRequest)
 		return
 	}
 
@@ -347,16 +347,15 @@ func setupProgressHandler(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		SetupProgressMap.RLock()
-		progress, exists := SetupProgressMap.m[dbFile]
+		progress, exists := SetupProgressMap.m[file]
 		SetupProgressMap.RUnlock()
 		if exists {
 			fmt.Fprintf(w, "data: %.2f\n\n", progress)
 			w.(http.Flusher).Flush()
 			if progress >= 100 {
 				SetupProgressMap.Lock()
-				delete(SetupProgressMap.m, dbFile)
+				delete(SetupProgressMap.m, file)
 				SetupProgressMap.Unlock()
-				db, _ = NewDBHandler(options.dbPath)
 				return
 			}
 		}
@@ -365,7 +364,6 @@ func setupProgressHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *WebServer) handleHome(w http.ResponseWriter, r *http.Request) {
 	if db.IsEmpty() {
-		db.Close()
 		http.ServeFile(w, r, "assets/static/setup.html")
 	} else {
 		s.handleHTMLSearch(w, r)
