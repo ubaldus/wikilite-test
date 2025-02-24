@@ -4,6 +4,7 @@ package main
 
 import (
 	"database/sql"
+	"sort"
 )
 
 func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, error) {
@@ -106,7 +107,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		return nil, err
 	}
 
-	quantizedQuery := aiQuantizeBinary(queryEmbedding)
+	quantizedQuery := QuantizeBinary(queryEmbedding)
 
 	rows, err := h.db.Query("SELECT id, chunk FROM vectors_ann_chunks")
 	if err != nil {
@@ -134,7 +135,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 			var result VectorDistance
 			embeddingBlob := chunkBlob[position:(position + chunkSize)]
 
-			distance, err := aiHammingDistance(quantizedQuery, embeddingBlob)
+			distance, err := HammingDistance(quantizedQuery, embeddingBlob)
 			if err != nil {
 				return nil, err
 			}
@@ -173,8 +174,8 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 			return nil, err
 		}
 
-		embedding := aiBytesToFloat32(embeddingBlob)
-		distance, err := aiL2Distance(queryEmbedding, embedding)
+		embedding := BytesToFloat32(embeddingBlob)
+		distance, err := EuclideanDistance(queryEmbedding, embedding)
 		if err != nil {
 			return nil, err
 		}
@@ -220,4 +221,37 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 	}
 
 	return results, nil
+}
+
+func (h *DBHandler) SearchWordDistance(inputWord string, limit int) ([]SearchResult, error) {
+	var allMatches []SearchResult
+	seen := make(map[string]bool)
+
+	rows, err := h.db.Query("SELECT term FROM vocabulary")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var word string
+		if err := rows.Scan(&word); err != nil {
+			return nil, err
+		}
+		if seen[word] {
+			continue
+		}
+		seen[word] = true
+		distance := LevenshteinDistance(inputWord, word)
+		allMatches = append(allMatches, SearchResult{Text: word, Power: float64(distance)})
+	}
+
+	sort.Slice(allMatches, func(i, j int) bool {
+		return allMatches[i].Power < allMatches[j].Power
+	})
+
+	if len(allMatches) > limit {
+		return allMatches[:limit], nil
+	}
+	return allMatches, nil
 }

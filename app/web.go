@@ -28,11 +28,11 @@ type APIRequest struct {
 }
 
 type APIResponse struct {
-	Status  string         `json:"status"`
-	Message string         `json:"message,omitempty"`
-	Results []SearchResult `json:"results,omitempty"`
-	Article ArticleResult  `json:"article,omitempty"`
-	Time    float64        `json:"time"`
+	Status  string          `json:"status"`
+	Message string          `json:"message,omitempty"`
+	Results *[]SearchResult `json:"results,omitempty"`
+	Article *ArticleResult  `json:"article,omitempty"`
+	Time    float64         `json:"time"`
 }
 
 type WebServer struct {
@@ -175,7 +175,7 @@ func (s *WebServer) handleGenericAPISearch(w http.ResponseWriter, r *http.Reques
 
 	json.NewEncoder(w).Encode(APIResponse{
 		Status:  "success",
-		Results: results,
+		Results: &results,
 		Time:    time.Since(startTime).Seconds(),
 	})
 
@@ -191,6 +191,10 @@ func (s *WebServer) handleAPISearchTitle(w http.ResponseWriter, r *http.Request)
 
 func (s *WebServer) handleAPISearchLexical(w http.ResponseWriter, r *http.Request) {
 	s.handleGenericAPISearch(w, r, SearchLexical)
+}
+
+func (s *WebServer) handleAPISearchWordDistance(w http.ResponseWriter, r *http.Request) {
+	s.handleGenericAPISearch(w, r, SearchWordDistance)
 }
 
 func (s *WebServer) handleAPISearchSemantic(w http.ResponseWriter, r *http.Request) {
@@ -237,7 +241,7 @@ func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(APIResponse{
 		Status:  "success",
-		Article: article,
+		Article: &article,
 		Time:    time.Since(startTime).Seconds(),
 	})
 }
@@ -378,6 +382,7 @@ func (s *WebServer) Start(host string, port int) error {
 	http.HandleFunc("/api/search/title", s.handleAPISearchTitle)
 	http.HandleFunc("/api/search/lexical", s.handleAPISearchLexical)
 	http.HandleFunc("/api/search/semantic", s.handleAPISearchSemantic)
+	http.HandleFunc("/api/search/distance", s.handleAPISearchWordDistance)
 	http.HandleFunc("/api/article", s.handleAPIArticle)
 	http.HandleFunc("/api/setup", handleSetup)
 

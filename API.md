@@ -120,7 +120,7 @@ GET /api/search/semantic?query=linux&limit=5
 
 #### POST Request
 ```json
-POST /api/search/semantc
+POST /api/search/semantic
 Content-Type: application/json
 
 {
@@ -129,7 +129,34 @@ Content-Type: application/json
 }
 ```
 
-### 5. Get Article
+### 5. Search Word Distance
+Calculate the Levenshtein distance between the provided word and the entries in the internal database vocabulary to find the closest match.
+
+**Endpoint:** `/search/distance`  
+**Methods:** GET, POST
+
+#### Parameters
+- `query` (required): Search word
+- `limit` (optional): Maximum number of results (default: 5)
+
+#### GET Request
+```
+GET /api/search/distance?query=linux&limit=5
+```
+
+#### POST Request
+```json
+POST /api/search/distance
+Content-Type: application/json
+
+{
+  "query": "linux",
+  "limit": 5
+}
+```
+
+
+### 6. Get Article
 Retrieves a complete article by ID.
 
 **Endpoint:** `/article`  

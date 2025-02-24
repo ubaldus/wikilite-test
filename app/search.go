@@ -79,6 +79,10 @@ func SearchTitle(query string, limit int) ([]SearchResult, error) {
 	return results, nil
 }
 
+func SearchWordDistance(word string, limit int) ([]SearchResult, error) {
+	return db.SearchWordDistance(word, limit)
+}
+
 func SearchCli() error {
 	reader := bufio.NewReader(os.Stdin)
 	articles := make(map[int]int)

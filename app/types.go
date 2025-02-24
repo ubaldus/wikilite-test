@@ -3,10 +3,10 @@
 package main
 
 type SearchResult struct {
-	ArticleID int     `json:"article_id"`
-	Title     string  `json:"title"`
+	ArticleID int     `json:"article_id,omitempty"`
+	Title     string  `json:"title,omitempty"`
 	Text      string  `json:"text"`
-	Type      string  `json:"type"`
+	Type      string  `json:"type,omitempty"`
 	Power     float64 `json:"power"`
 }
 
@@ -18,9 +18,9 @@ type ArticleResultSection struct {
 
 type ArticleResult struct {
 	ID       int                    `json:"id"`
-	Title    string                 `json:"title"`
-	Entity   string                 `json:"entity"`
-	Sections []ArticleResultSection `json:"sections"`
+	Title    string                 `json:"title,omitempty"`
+	Entity   string                 `json:"entity,omitempty"`
+	Sections []ArticleResultSection `json:"sections,omitempty"`
 }
 
 type OutputArticle struct {

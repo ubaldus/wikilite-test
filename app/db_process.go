@@ -28,6 +28,20 @@ func (h *DBHandler) ProcessContents() error {
 	return nil
 }
 
+func (h *DBHandler) ProcessVocabulary() error {
+	_, err := h.db.Exec("INSERT OR IGNORE INTO vocabulary SELECT term FROM article_search_vocabulary")
+	if err != nil {
+		return fmt.Errorf("error populating vocabulary table: %v", err)
+	}
+
+	_, err = h.db.Exec("INSERT OR IGNORE INTO vocabulary SELECT term FROM hash_search_vocabulary")
+	if err != nil {
+		return fmt.Errorf("error populating vocabulary table: %v", err)
+	}
+
+	return nil
+}
+
 func (h *DBHandler) ProcessEmbeddings() (err error) {
 	batchSize := 1000
 	totalCount := 0
@@ -120,7 +134,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 				continue
 			}
 
-			if _, err := tx.Exec("INSERT OR REPLACE INTO vectors (rowid, embedding) VALUES (?, ?)", hashData.ID, aiFloat32ToBytes(embedding)); err != nil {
+			if _, err := tx.Exec("INSERT OR REPLACE INTO vectors (rowid, embedding) VALUES (?, ?)", hashData.ID, Float32ToBytes(embedding)); err != nil {
 				log.Printf("Error inserting vectors for hash %s: %v", hashData.Hash, err)
 				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
@@ -130,7 +144,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 				problematicIDs = append(problematicIDs, hashData.ID)
 				continue
 			}
-			ann_chunk_data = append(ann_chunk_data, aiQuantizeBinary(embedding)...)
+			ann_chunk_data = append(ann_chunk_data, QuantizeBinary(embedding)...)
 			ann_chunk_position++
 		}
 		if _, err := tx.Exec("INSERT INTO vectors_ann_chunks (id, chunk) VALUES (?, ?)", ann_chunk_rowid, ann_chunk_data); err != nil {

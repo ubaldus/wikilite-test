@@ -30,6 +30,12 @@ func (h *DBHandler) initializeDB() error {
 			title TEXT NOT NULL,
 			entity TEXT NOT NULL
 		)`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
+			title,
+			content='articles',
+			content_rowid='id'
+		)`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS article_search_vocabulary USING fts5vocab(article_search, row)`,
 
 		`CREATE TABLE IF NOT EXISTS sections (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,18 +59,14 @@ func (h *DBHandler) initializeDB() error {
 			text TEXT NOT NULL,
 			pow INTEGER DEFAULT 0
 		)`,
-
-		`CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
-			title,
-			content='articles',
-			content_rowid='id'
-		)`,
-
 		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
 			text,
 			content='hashes',
 			content_rowid='id'
 		)`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search_vocabulary USING fts5vocab(hash_search, row)`,
+
+		`CREATE TABLE IF NOT EXISTS vocabulary (term TEXT)`,
 
 		`CREATE TABLE IF NOT EXISTS vectors (
 			id INTEGER PRIMARY KEY,

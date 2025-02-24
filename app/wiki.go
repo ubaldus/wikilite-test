@@ -37,6 +37,9 @@ func WikiImport(path string) (err error) {
 	if err = db.ProcessContents(); err != nil {
 		return
 	}
+	if err = db.ProcessVocabulary(); err != nil {
+		return
+	}
 
 	return
 }

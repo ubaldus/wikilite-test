@@ -7,9 +7,11 @@ import (
 	"compress/flate"
 	"crypto/md5"
 	"embed"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -101,4 +103,42 @@ type byteCounter struct {
 func (bc *byteCounter) Write(p []byte) (int, error) {
 	*bc.total += int64(len(p))
 	return len(p), nil
+}
+
+func QuantizeBinary(values []float32) []byte {
+	numBytes := (len(values) + 7) / 8
+	packedData := make([]byte, numBytes)
+
+	for i, value := range values {
+		if value >= 0 {
+			packedData[i/8] |= 1 << (i % 8)
+		}
+	}
+
+	return packedData
+}
+
+func BytesToFloat32(bytes []byte) []float32 {
+	if len(bytes)%4 != 0 {
+		panic("input byte slice length must be a multiple of 4")
+	}
+
+	float32s := make([]float32, 0, len(bytes)/4)
+	for i := 0; i < len(bytes); i += 4 {
+		bits := binary.LittleEndian.Uint32(bytes[i : i+4])
+		float32s = append(float32s, math.Float32frombits(bits))
+	}
+
+	return float32s
+}
+
+func Float32ToBytes(values []float32) []byte {
+	bytes := make([]byte, 4*len(values))
+
+	for i, value := range values {
+		bits := math.Float32bits(value)
+		binary.LittleEndian.PutUint32(bytes[4*i:4*(i+1)], bits)
+	}
+
+	return bytes
 }
