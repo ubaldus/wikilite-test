@@ -10,14 +10,8 @@ clean:
 	@rm -f wikilite wikilite.exe
 
 lint:
-	@gofmt -w .
-
-test:
-	@go mod tidy
-	@go mod verify
-	@go vet ./...
-	@go test -v ./test
+	@gofmt -w ./app
 
 wikilite:
-	@go build -tags "fts5" -ldflags "-s -w" -o wikilite .
+	@go build -tags "fts5" -ldflags "-s -w" -o wikilite ./app
 	@strip wikilite

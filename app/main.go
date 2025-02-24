@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.11.3"
+const Version = "0.12.0"
 
 type Config struct {
 	aiApiKey            string
