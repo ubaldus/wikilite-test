@@ -227,31 +227,51 @@ func (h *DBHandler) SearchWordDistance(inputWord string, limit int) ([]SearchRes
 	var allMatches []SearchResult
 	seen := make(map[string]bool)
 
-	rows, err := h.db.Query("SELECT term FROM vocabulary")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	batchSize := 100 * 1000
+	offset := 0
 
-	for rows.Next() {
-		var word string
-		if err := rows.Scan(&word); err != nil {
+	for {
+		rows, err := h.db.Query("SELECT term FROM vocabulary LIMIT ? OFFSET ?", batchSize, offset)
+		if err != nil {
 			return nil, err
 		}
-		if seen[word] {
-			continue
+		defer rows.Close()
+
+		processed := 0
+		for rows.Next() {
+			var word string
+			if err := rows.Scan(&word); err != nil {
+				return nil, err
+			}
+
+			if seen[word] {
+				continue
+			}
+			seen[word] = true
+
+			distance := LevenshteinDistance(inputWord, word)
+
+			allMatches = append(allMatches, SearchResult{Text: word, Power: float64(distance)})
+
+			if len(allMatches) > limit {
+				sort.Slice(allMatches, func(i, j int) bool {
+					return allMatches[i].Power < allMatches[j].Power
+				})
+				allMatches = allMatches[:limit]
+			}
+
+			processed++
 		}
-		seen[word] = true
-		distance := LevenshteinDistance(inputWord, word)
-		allMatches = append(allMatches, SearchResult{Text: word, Power: float64(distance)})
+
+		if processed < batchSize {
+			break
+		}
+		offset += batchSize
 	}
 
 	sort.Slice(allMatches, func(i, j int) bool {
 		return allMatches[i].Power < allMatches[j].Power
 	})
 
-	if len(allMatches) > limit {
-		return allMatches[:limit], nil
-	}
 	return allMatches, nil
 }
