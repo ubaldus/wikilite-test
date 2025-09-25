@@ -60,7 +60,7 @@ func aiInit() error {
 			if err != nil {
 				return err
 			}
-			aiLocal.context, err = llama.NewContextWithModel(aiLocal.model, llama.NewContextParams(2048, aiLocal.batchSize, 1, runtime.NumCPU(), false, ""))
+			aiLocal.context, err = llama.NewContextWithModel(aiLocal.model, llama.NewContextParams(options.aiModelContextSize, aiLocal.batchSize, 1, runtime.NumCPU(), false, ""))
 			if err != nil {
 				return err
 			}
