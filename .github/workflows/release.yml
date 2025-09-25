@@ -22,7 +22,7 @@ jobs:
           CGO_ENABLED=1 \
           GOOS=darwin \
           GOARCH=amd64 \
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.command .
@@ -57,7 +57,7 @@ jobs:
           CGO_ENABLED=1 \
           GOOS=darwin \
           GOARCH=arm64 \
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.command .
@@ -92,7 +92,7 @@ jobs:
           CGO_ENABLED=1 \
           GOOS=linux \
           GOARCH=amd64 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -127,7 +127,7 @@ jobs:
           CGO_ENABLED=1 \
           GOOS=linux \
           GOARCH=arm64 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -168,7 +168,7 @@ jobs:
           GOOS=linux \
           GOARCH=arm \
           GOARM=7 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -203,7 +203,7 @@ jobs:
           $env:CGO_ENABLED = "1"; 
           $env:GOOS = "windows"; 
           $env:GOARCH = "amd64"; 
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe .
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.bat .
@@ -238,7 +238,7 @@ jobs:
           $env:CGO_ENABLED = "1"; 
           $env:GOOS = "windows"; 
           $env:GOARCH = "arm64"; 
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe .
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.bat .
