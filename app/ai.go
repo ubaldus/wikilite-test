@@ -3,17 +3,40 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 
 	"github.com/ollama/ollama/llama"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/shared"
 )
+
+type embeddingRequest struct {
+	Model          string      `json:"model"`
+	Input          interface{} `json:"input"`
+	EncodingFormat string      `json:"encoding_format,omitempty"`
+}
+
+type embeddingResponse struct {
+	Object string `json:"object"`
+	Data   []struct {
+		Object    string    `json:"object"`
+		Index     int       `json:"index"`
+		Embedding []float32 `json:"embedding"`
+	} `json:"data"`
+	Model string `json:"model"`
+	Usage struct {
+		PromptTokens int `json:"prompt_tokens"`
+		TotalTokens  int `json:"total_tokens"`
+	} `json:"usage"`
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
 
 var aiLocal struct {
 	model     *llama.Model
@@ -101,26 +124,51 @@ func aiEmbeddings(input string) (output []float32, err error) {
 		return embeddings, nil
 
 	} else {
+		url := options.aiApiUrl
+		payload := embeddingRequest{
+			Model:          options.aiModel,
+			Input:          input,
+			EncodingFormat: "float",
+		}
 
-		client := openai.NewClient(
-			option.WithAPIKey(options.aiApiKey),
-			option.WithBaseURL(options.aiApiUrl),
-		)
-		response, err := client.Embeddings.New(context.TODO(), openai.EmbeddingNewParams{
-			Model:          openai.F(options.aiModel),
-			Input:          openai.F[openai.EmbeddingNewParamsInputUnion](shared.UnionString(input)),
-			EncodingFormat: openai.F(openai.EmbeddingNewParamsEncodingFormatFloat),
-		})
-
+		body, err := json.Marshal(payload)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal embedding request: %v", err)
 		}
 
-		for _, embedding := range response.Data {
-			for _, value := range embedding.Embedding {
-				output = append(output, float32(value))
-			}
+		req, err := http.NewRequestWithContext(context.TODO(), "POST", url, bytes.NewBuffer(body))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP request: %v", err)
 		}
+
+		req.Header.Set("Content-Type", "application/json")
+		if options.aiApiKey != "" {
+			req.Header.Set("Authorization", "Bearer "+options.aiApiKey)
+		}
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("HTTP request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		var apiResp embeddingResponse
+		if decodeErr := json.NewDecoder(resp.Body).Decode(&apiResp); decodeErr != nil {
+			return nil, fmt.Errorf("failed to decode response (status %d): %v", resp.StatusCode, decodeErr)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			if apiResp.Error.Message != "" {
+				return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, apiResp.Error.Message)
+			}
+			return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
+		}
+
+		if len(apiResp.Data) == 0 {
+			return nil, fmt.Errorf("no embeddings returned")
+		}
+
+		return apiResp.Data[0].Embedding, nil
 	}
-	return
 }
