@@ -1,10 +1,10 @@
-FROM golang:1.23.4-alpine
+FROM golang:1.24-alpine
 
 RUN apk add --no-cache git gcc g++ make musl-dev
 
 WORKDIR /app
 
-RUN git clone https://github.com/eja/wikilite.git .
+RUN git clone --recursive https://github.com/eja/wikilite.git .
 
 RUN make
 
