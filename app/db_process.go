@@ -59,6 +59,10 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		return
 	}
 
+	if err = db.SetupPut("modelContextSize", fmt.Sprintf("%d", options.aiModelContextSize)); err != nil {
+		return
+	}
+
 	err = h.db.QueryRow("SELECT COUNT(*) FROM hashes WHERE id NOT IN (select vectors_id from vectors_ann_index)").Scan(&totalCount)
 	if err != nil {
 		return fmt.Errorf("error getting total count of hashes: %w", err)

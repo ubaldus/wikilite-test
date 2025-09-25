@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.12.2"
+const Version = "0.13.1"
 
 type Config struct {
 	aiApiKey            string
@@ -19,6 +19,7 @@ type Config struct {
 	aiModelPath         string
 	aiModelPrefixSave   string
 	aiModelPrefixSearch string
+	aiModelContextSize  int
 	aiSync              bool
 	cli                 bool
 	dbPath              string
@@ -50,6 +51,7 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.aiModelPrefixSave, "ai-model-prefix-save", "", "AI embedding model task prefix to import a document")
 	flag.StringVar(&options.aiModelPrefixSearch, "ai-model-prefix-search", "", "AI embedding model task prefix to perform a search")
 	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI generate embeddings")
+	flag.IntVar(&options.aiModelContextSize, "ai-model-context-size", 2048, "AI embedding model context size")
 
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
 

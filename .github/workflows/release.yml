@@ -11,18 +11,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23.4'
+          go-version: '1.24'
 
       - name: Build wikilite for MacOS AMD64
         run: |
           CGO_ENABLED=1 \
           GOOS=darwin \
           GOARCH=amd64 \
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.command .
@@ -46,18 +48,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23.4'
+          go-version: '1.24'
 
       - name: Build wikilite for MacOS ARM64
         run: |
           CGO_ENABLED=1 \
           GOOS=darwin \
           GOARCH=arm64 \
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.command .
@@ -81,18 +85,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23.4'
+          go-version: '1.24'
           
       - name: Build wikilite for Linux AMD64
         run: |
           CGO_ENABLED=1 \
           GOOS=linux \
           GOARCH=amd64 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -116,18 +122,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23.4'
+          go-version: '1.24'
 
       - name: Build wikilite for Linux ARM64
         run: |
           CGO_ENABLED=1 \
           GOOS=linux \
           GOARCH=arm64 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -151,11 +159,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23.4'
+          go-version: '1.24'
 
       - name: Install ARM32 cross-compiler
         run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabi g++-arm-linux-gnueabi libsqlite3-dev
@@ -168,7 +178,7 @@ jobs:
           GOOS=linux \
           GOARCH=arm \
           GOARM=7 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite .
+          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -192,18 +202,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23.4'
+          go-version: '1.24'
 
       - name: Build wikilite for Windows AMD64
         run: |
           $env:CGO_ENABLED = "1"; 
           $env:GOOS = "windows"; 
           $env:GOARCH = "amd64"; 
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe .
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.bat .
@@ -227,18 +239,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23.4'
+          go-version: '1.24'
 
       - name: Build wikilite for Windows ARM64
         run: |
           $env:CGO_ENABLED = "1"; 
           $env:GOOS = "windows"; 
           $env:GOARCH = "arm64"; 
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe .
+          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe ./app
 
       - name: Copy script to the root directory
         run: cp scripts/start.bat .
