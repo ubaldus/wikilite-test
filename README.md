@@ -12,7 +12,7 @@ Wikilite is a tool that allows you to create a local SQLite database of Wikipedi
 
 ## Getting Started
 
-1.  **Clone the repository**: `git clone --recursive https://github.com/eja/wikilite.git`
+1.  **Clone the repository**: `git clone https://github.com/eja/wikilite.git`
 2.  **Build the Wikilite binary**: `make`
 3.  **Import Wikipedia data**:  `./wikilite --wiki-import <url> --db <file.db>`
 

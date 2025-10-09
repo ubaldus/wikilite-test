@@ -2,6 +2,12 @@
 
 package main
 
+/*
+#cgo CXXFLAGS: -I${SRCDIR}/../include
+#cgo CFLAGS: -I${SRCDIR}/../include
+*/
+import "C"
+
 import (
 	"flag"
 	"fmt"
