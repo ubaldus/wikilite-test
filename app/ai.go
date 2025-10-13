@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
-	"runtime"
 
 	"github.com/ollama/ollama/llama"
+	"github.com/ollama/ollama/llm"
 )
 
 type embeddingRequest struct {
@@ -42,30 +41,52 @@ var aiLocal struct {
 	model     *llama.Model
 	context   *llama.Context
 	batchSize int
+	isLocal   bool
 }
 
-func aiInit() error {
-	if options.aiApiUrl == "" {
-		aiModelPath := filepath.Join(options.aiModelPath, options.aiModel) + ".gguf"
-		if _, err := os.Stat(aiModelPath); err != nil {
-			return err
-		} else {
-			originalStderr := os.Stderr
-			if os.Stderr, err = MuteStderr(); err != nil {
-				return err
-			}
-			aiLocal.batchSize = 512
-			llama.BackendInit()
-			aiLocal.model, err = llama.LoadModelFromFile(aiModelPath, llama.ModelParams{UseMmap: true})
-			if err != nil {
-				return err
-			}
-			aiLocal.context, err = llama.NewContextWithModel(aiLocal.model, llama.NewContextParams(options.aiModelContextSize, aiLocal.batchSize, 1, runtime.NumCPU(), false, ""))
-			if err != nil {
-				return err
-			}
-			os.Stderr = originalStderr
+func aiModelIsLocal(value string) bool {
+	if _, err := os.Stat(value); err == nil {
+		return true
+	}
+	if _, err := os.Stat(value + ".gguf"); err == nil {
+		options.aiModel = value + ".gguf"
+		return true
+	}
+	return false
+}
+
+func aiInit() (err error) {
+	aiModelPath := options.aiModel
+	if _, err := os.Stat(aiModelPath); err == nil {
+		aiLocal.isLocal = true
+	} else if _, err := os.Stat(aiModelPath + ".gguf"); err == nil {
+		aiLocal.isLocal = true
+		aiModelPath += ".gguf"
+	}
+	if aiLocal.isLocal {
+		originalStderr := os.Stderr
+		if os.Stderr, err = MuteStderr(); err != nil {
+			return
 		}
+
+		ggml, err := llm.LoadModel(aiModelPath, 0)
+		if err != nil {
+			return err
+		}
+
+		blockCount := int(ggml.KV().BlockCount() + 1)
+		aiLocal.model, err = llama.LoadModelFromFile(aiModelPath, llama.ModelParams{NumGpuLayers: blockCount, VocabOnly: false})
+		if err != nil {
+			return err
+		}
+
+		aiLocal.batchSize = 512
+		kvSize := int(ggml.KV().ContextLength())
+		aiLocal.context, err = llama.NewContextWithModel(aiLocal.model, llama.NewContextParams(kvSize, aiLocal.batchSize, 1, 1, false, ""))
+		if err != nil {
+			return err
+		}
+		os.Stderr = originalStderr
 	}
 
 	if _, err := aiEmbeddings("test"); err != nil {
@@ -76,49 +97,37 @@ func aiInit() error {
 }
 
 func aiEmbeddings(input string) (output []float32, err error) {
-	if options.aiApiUrl == "" {
+	if aiLocal.isLocal {
 		tokens, err := aiLocal.model.Tokenize(input, true, true)
 		if err != nil {
-			return nil, fmt.Errorf("failed to tokenize text: %v", err)
+			return nil, fmt.Errorf("failed to tokenize prompt: %w", err)
 		}
 
-		var embeddings []float32
-		seqId := 0
-
-		for i := 0; i < len(tokens); i += aiLocal.batchSize {
-			end := i + aiLocal.batchSize
-			if end > len(tokens) {
-				end = len(tokens)
-			}
-
-			batchTokens := tokens[i:end]
-			batch, err := llama.NewBatch(len(batchTokens), 1, 0)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create batch: %v", err)
-			}
-
-			for j, token := range batchTokens {
-				isLast := (i + j + 1) == len(tokens)
-				batch.Add(token, nil, j, isLast, seqId)
-			}
-
-			if err := aiLocal.context.Decode(batch); err != nil {
-				batch.Free()
-				return nil, fmt.Errorf("failed to decode batch: %v", err)
-			}
-
-			if i+len(batchTokens) == len(tokens) {
-				batchEmbeddings := aiLocal.context.GetEmbeddingsSeq(seqId)
-				if batchEmbeddings != nil {
-					embeddings = batchEmbeddings
-				}
-			}
-
-			batch.Free()
+		batchSize := aiLocal.batchSize
+		if len(tokens) > batchSize {
+			batchSize = len(tokens)
 		}
 
-		if embeddings == nil || len(embeddings) == 0 {
-			return nil, fmt.Errorf("failed to get embeddings")
+		batch, err := llama.NewBatch(batchSize, 1, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create new batch: %w", err)
+		}
+		defer batch.Free()
+
+		aiLocal.context.KvCacheClear()
+
+		for i, token := range tokens {
+			isLastToken := i == len(tokens)-1
+			batch.Add(token, nil, i, isLastToken, 0)
+		}
+
+		if err := aiLocal.context.Decode(batch); err != nil {
+			return nil, fmt.Errorf("failed to decode batch: %w", err)
+		}
+
+		embeddings := aiLocal.context.GetEmbeddingsSeq(0)
+		if embeddings == nil {
+			return nil, fmt.Errorf("failed to get embeddings, result was nil")
 		}
 
 		return embeddings, nil

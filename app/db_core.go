@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -121,18 +120,14 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 		options.language = language
 	}
 
-	if model, err := handler.SetupGet("model"); err == nil && model != "" {
-		options.aiModel = model
+	if options.aiModel == "" {
+		if model, err := handler.SetupGet("model"); err == nil && model != "" {
+			options.aiModel = model
+		}
 	}
 
 	if modelPrefixSearch, err := handler.SetupGet("modelPrefixSearch"); err == nil && modelPrefixSearch != "" {
 		options.aiModelPrefixSearch = modelPrefixSearch
-	}
-
-	if modelContextSize, err := handler.SetupGet("modelContextSize"); err == nil && modelContextSize != "" {
-		if num, err := strconv.Atoi(modelContextSize); err == nil {
-			options.aiModelContextSize = num
-		}
 	}
 
 	return handler, nil

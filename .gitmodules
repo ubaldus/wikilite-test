@@ -1,3 +1,0 @@
-[submodule "ollama"]
-	path = ollama
-	url = https://github.com/ollama/ollama

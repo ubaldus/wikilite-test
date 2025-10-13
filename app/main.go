@@ -2,12 +2,6 @@
 
 package main
 
-/*
-#cgo CXXFLAGS: -I${SRCDIR}/../include
-#cgo CFLAGS: -I${SRCDIR}/../include
-*/
-import "C"
-
 import (
 	"flag"
 	"fmt"
@@ -16,16 +10,14 @@ import (
 	"os"
 )
 
-const Version = "0.13.1"
+const Version = "0.15.0"
 
 type Config struct {
 	aiApiKey            string
 	aiApiUrl            string
 	aiModel             string
-	aiModelPath         string
 	aiModelPrefixSave   string
 	aiModelPrefixSearch string
-	aiModelContextSize  int
 	aiSync              bool
 	cli                 bool
 	dbPath              string
@@ -51,13 +43,11 @@ var (
 func parseConfig() (*Config, error) {
 	options = &Config{}
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
-	flag.StringVar(&options.aiApiUrl, "ai-api-url", "", "AI API base url")
-	flag.StringVar(&options.aiModel, "ai-model", "all-minilm", "AI embedding model")
-	flag.StringVar(&options.aiModelPath, "ai-model-path", "", "AI embedding local model folder path")
+	flag.StringVar(&options.aiApiUrl, "ai-api-url", "http://localhost:11434/v1/embeddings", "AI API base url")
+	flag.StringVar(&options.aiModel, "ai-model", "", "AI embedding model")
 	flag.StringVar(&options.aiModelPrefixSave, "ai-model-prefix-save", "", "AI embedding model task prefix to import a document")
 	flag.StringVar(&options.aiModelPrefixSearch, "ai-model-prefix-search", "", "AI embedding model task prefix to perform a search")
 	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI generate embeddings")
-	flag.IntVar(&options.aiModelContextSize, "ai-model-context-size", 2048, "AI embedding model context size")
 
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
 

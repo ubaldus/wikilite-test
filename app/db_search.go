@@ -195,26 +195,27 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 	var results []SearchResult
 	for _, vd := range topResults {
 		sqlQuery := `
-			SELECT id, title, (SELECT text FROM hashes WHERE id=?) AS text
-			FROM articles
-			WHERE articles.id = (
-				SELECT article_id 
-				FROM sections 
-				WHERE sections.id = 
-					(SELECT section_id FROM content WHERE content.hash_id=? LIMIT 1)
-			)
+			SELECT
+				a.id,
+				a.title,
+				s.title
+			FROM articles a
+			JOIN sections s ON a.id = s.article_id
+			WHERE s.id = ?
 		`
 
 		var result SearchResult
-		err := h.db.QueryRow(sqlQuery, vd.ID, vd.ID).Scan(
+		var sectionTitle string
+		err := h.db.QueryRow(sqlQuery, vd.ID).Scan(
 			&result.ArticleID,
 			&result.Title,
-			&result.Text,
+			&sectionTitle,
 		)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
 
+		result.Text = sectionTitle
 		result.Type = "V"
 		result.Power = float64(vd.Distance)
 		results = append(results, result)

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -43,11 +44,13 @@ func (h *DBHandler) ProcessVocabulary() error {
 }
 
 func (h *DBHandler) ProcessEmbeddings() (err error) {
-	batchSize := 1000
+	batchSize := 250
 	totalCount := 0
 	offset := 0
 
-	if err = db.SetupPut("model", options.aiModel); err != nil {
+	aiModelBasename := filepath.Base(options.aiModel)
+	aiModelName := strings.TrimSuffix(aiModelBasename, ".gguf")
+	if err = db.SetupPut("model", aiModelName); err != nil {
 		return
 	}
 
@@ -59,16 +62,12 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		return
 	}
 
-	if err = db.SetupPut("modelContextSize", fmt.Sprintf("%d", options.aiModelContextSize)); err != nil {
-		return
-	}
-
-	err = h.db.QueryRow("SELECT COUNT(*) FROM hashes WHERE id NOT IN (select vectors_id from vectors_ann_index)").Scan(&totalCount)
+	err = h.db.QueryRow("SELECT COUNT(*) FROM sections WHERE id NOT IN (SELECT id FROM vectors)").Scan(&totalCount)
 	if err != nil {
-		return fmt.Errorf("error getting total count of hashes: %w", err)
+		return fmt.Errorf("error getting total count of sections: %w", err)
 	}
 
-	log.Printf("Pending embeddings: %d", totalCount)
+	log.Printf("Pending section embeddings: %d", totalCount)
 
 	startTime := time.Now()
 	var problematicIDs []int
@@ -78,45 +77,49 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 			return fmt.Errorf("error starting transaction: %w", err)
 		}
 
-		query := `SELECT id, hash, text FROM hashes WHERE id NOT IN (select vectors_id from vectors_ann_index)`
+		query := `SELECT s.id, s.title, a.title 
+          FROM sections s 
+          JOIN articles a ON s.article_id = a.id 
+          WHERE s.id NOT IN (SELECT id FROM vectors)`
 		if len(problematicIDs) > 0 {
 			idList := make([]string, 0, len(problematicIDs))
 			for _, id := range problematicIDs {
 				idList = append(idList, fmt.Sprintf("%d", id))
 			}
-			query += " AND id NOT IN (" + strings.Join(idList, ", ") + ")"
+			query += " AND s.id NOT IN (" + strings.Join(idList, ", ") + ")"
 		}
 		query += " LIMIT ?"
 
 		rows, err := tx.Query(query, batchSize)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("error querying hashes: %w", err)
+			return fmt.Errorf("error querying sections: %w", err)
 		}
 
-		type HashData struct {
-			ID   int
-			Hash string
-			Text string
-		}
-		var hashesData []HashData
+		var sectionIDs []int
+		var sectionTitles []string
+		var articleTitles []string
+
 		for rows.Next() {
-			var data HashData
-			if err := rows.Scan(&data.ID, &data.Hash, &data.Text); err != nil {
+			var sectionID int
+			var sectionTitle, articleTitle string
+			if err := rows.Scan(&sectionID, &sectionTitle, &articleTitle); err != nil {
 				rows.Close()
 				tx.Rollback()
-				return fmt.Errorf("error scanning row: %w", err)
+				return fmt.Errorf("error scanning section row: %w", err)
 			}
-			hashesData = append(hashesData, data)
+			sectionIDs = append(sectionIDs, sectionID)
+			sectionTitles = append(sectionTitles, sectionTitle)
+			articleTitles = append(articleTitles, articleTitle)
 		}
 		rows.Close()
 
 		if err := rows.Err(); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("error iterating rows: %w", err)
+			return fmt.Errorf("error iterating section rows: %w", err)
 		}
 
-		if len(hashesData) == 0 {
+		if len(sectionIDs) == 0 {
 			tx.Commit()
 			break
 		}
@@ -130,22 +133,42 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		}
 		ann_chunk_rowid++
 
-		for _, hashData := range hashesData {
-			embedding, err := aiEmbeddings(options.aiModelPrefixSave + hashData.Text)
+		for i, sectionID := range sectionIDs {
+			var texts []string
+			textRows, err := tx.Query("SELECT h.text FROM hashes h JOIN content c ON h.id = c.hash_id WHERE c.section_id = ? ORDER BY c.id", sectionID)
 			if err != nil {
-				log.Printf("Embedding generation error for hash %s: %v", hashData.Hash, err)
-				problematicIDs = append(problematicIDs, hashData.ID)
+				log.Printf("Error getting text for section %d: %v", sectionID, err)
+				problematicIDs = append(problematicIDs, sectionID)
+				continue
+			}
+			for textRows.Next() {
+				var text string
+				if err := textRows.Scan(&text); err != nil {
+					textRows.Close()
+					log.Printf("Error scanning text for section %d: %v", sectionID, err)
+					problematicIDs = append(problematicIDs, sectionID)
+					continue
+				}
+				texts = append(texts, text)
+			}
+			textRows.Close()
+			fullSectionText := articleTitles[i] + " - " + sectionTitles[i] + "\n\n" + strings.Join(texts, "\n\n")
+
+			embedding, err := aiEmbeddings(options.aiModelPrefixSave + fullSectionText)
+			if err != nil {
+				log.Printf("Embedding generation error for section %d: %v", sectionID, err)
+				problematicIDs = append(problematicIDs, sectionID)
 				continue
 			}
 
-			if _, err := tx.Exec("INSERT OR REPLACE INTO vectors (rowid, embedding) VALUES (?, ?)", hashData.ID, Float32ToBytes(embedding)); err != nil {
-				log.Printf("Error inserting vectors for hash %s: %v", hashData.Hash, err)
-				problematicIDs = append(problematicIDs, hashData.ID)
+			if _, err := tx.Exec("INSERT OR REPLACE INTO vectors (id, embedding) VALUES (?, ?)", sectionID, Float32ToBytes(embedding)); err != nil {
+				log.Printf("Error inserting vector for section %d: %v", sectionID, err)
+				problematicIDs = append(problematicIDs, sectionID)
 				continue
 			}
-			if _, err := tx.Exec("INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)", hashData.ID, ann_chunk_rowid, ann_chunk_position); err != nil {
-				log.Printf("Error inserting vectors_ann for hash %s: %v", hashData.Hash, err)
-				problematicIDs = append(problematicIDs, hashData.ID)
+			if _, err := tx.Exec("INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)", sectionID, ann_chunk_rowid, ann_chunk_position); err != nil {
+				log.Printf("Error inserting vectors_ann for section %d: %v", sectionID, err)
+				problematicIDs = append(problematicIDs, sectionID)
 				continue
 			}
 			ann_chunk_data = append(ann_chunk_data, QuantizeBinary(embedding)...)
@@ -160,7 +183,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 			return fmt.Errorf("error committing transaction: %w", err)
 		}
 
-		processedCount := offset + len(hashesData)
+		processedCount := offset + len(sectionIDs)
 		progress := float64(processedCount) / float64(totalCount) * 100
 		elapsed := time.Since(startTime)
 		estimatedTotalTime := time.Duration(float64(elapsed) / (progress / 100.0))
@@ -168,7 +191,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 
 		log.Printf("Embedding progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
 
-		offset += batchSize
+		offset += len(sectionIDs)
 	}
 
 	return nil

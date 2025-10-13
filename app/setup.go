@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -61,10 +60,10 @@ func SetupFilterDBFiles(siblings []SetupSibling) []SetupSibling {
 }
 
 func SetupGetGGUFFileName(dbFile string) string {
-	baseName := strings.TrimSuffix(dbFile, ".db.gz")
-	parts := strings.Split(baseName, ".")
-	if len(parts) == 2 {
-		return parts[1] + ".gguf"
+	name := strings.TrimSuffix(dbFile, ".db.gz")
+	prefixIndex := strings.Index(name, ".")
+	if prefixIndex > 0 {
+		return name[prefixIndex+1:] + ".gguf"
 	}
 	return ""
 }
@@ -155,12 +154,11 @@ func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressDbCallback fu
 
 	ggufFile := SetupGetGGUFFileName(selectedGroup[0].Rfilename)
 	if ggufFile != "" {
-		ggufFilePath := filepath.Join(options.aiModelPath, ggufFile)
-		if _, err := os.Stat(ggufFilePath); err == nil {
-			return fmt.Errorf("%s already exists", ggufFilePath)
+		if _, err := os.Stat(ggufFile); err == nil {
+			return fmt.Errorf("%s already exists", ggufFile)
 		}
 
-		err := SetupDownloadFile("models/"+ggufFile, ggufFilePath, func(progress float64) {
+		err := SetupDownloadFile("models/"+ggufFile, ggufFile, func(progress float64) {
 			if progressAiCallback != nil {
 				progressAiCallback(ggufFile, progress)
 			}
