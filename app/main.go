@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const Version = "0.15.0"
+const Version = "0.16.0"
 
 type Config struct {
 	aiApiKey            string

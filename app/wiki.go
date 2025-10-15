@@ -1,4 +1,4 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -284,21 +284,21 @@ func wikiExtractContentFromHTML(htmlContent string, articleID string, articleTit
 	for _, item := range groupedItems {
 		texts := item["text"].([]string)
 		if len(texts) > 0 {
-			var textEntries []map[string]string
+			var contentBuilder strings.Builder
 			for _, text := range texts {
 				if text != item["title"] {
-					textEntries = append(textEntries, map[string]string{
-						"hash": calculateHash([]string{text}),
-						"text": text,
-					})
+					contentBuilder.WriteString(text)
+					contentBuilder.WriteString("\n\n")
 				}
 			}
-
-			items = append(items, map[string]interface{}{
-				"title": item["title"],
-				"pow":   item["pow"],
-				"text":  textEntries,
-			})
+			fullContent := strings.TrimSpace(contentBuilder.String())
+			if fullContent != "" {
+				items = append(items, map[string]interface{}{
+					"title":   item["title"],
+					"pow":     item["pow"],
+					"content": fullContent,
+				})
+			}
 		}
 	}
 

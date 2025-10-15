@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -107,9 +107,7 @@ func SearchCli() error {
 
 				for _, section := range article.Sections {
 					fmt.Printf("%s\n\n", section.Title)
-					for _, text := range section.Texts {
-						fmt.Println(text)
-					}
+					fmt.Println(section.Content)
 					fmt.Println()
 				}
 				query = ""

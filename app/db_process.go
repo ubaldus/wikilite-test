@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -21,9 +21,9 @@ func (h *DBHandler) ProcessTitles() error {
 }
 
 func (h *DBHandler) ProcessContents() error {
-	_, err := h.db.Exec("INSERT INTO hash_search(rowid, text) SELECT id, text FROM hashes")
+	_, err := h.db.Exec("INSERT INTO section_search(rowid, title, content) SELECT id, title, content FROM sections")
 	if err != nil {
-		return fmt.Errorf("error populating hash_search table: %v", err)
+		return fmt.Errorf("error populating section_search table: %v", err)
 	}
 
 	return nil
@@ -35,7 +35,7 @@ func (h *DBHandler) ProcessVocabulary() error {
 		return fmt.Errorf("error populating vocabulary table: %v", err)
 	}
 
-	_, err = h.db.Exec("INSERT OR IGNORE INTO vocabulary SELECT term FROM hash_search_vocabulary")
+	_, err = h.db.Exec("INSERT OR IGNORE INTO vocabulary SELECT term FROM section_search_vocabulary")
 	if err != nil {
 		return fmt.Errorf("error populating vocabulary table: %v", err)
 	}
@@ -134,25 +134,15 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		ann_chunk_rowid++
 
 		for i, sectionID := range sectionIDs {
-			var texts []string
-			textRows, err := tx.Query("SELECT h.text FROM hashes h JOIN content c ON h.id = c.hash_id WHERE c.section_id = ? ORDER BY c.id", sectionID)
+			var sectionContent string
+			err := tx.QueryRow("SELECT content FROM sections WHERE id = ?", sectionID).Scan(&sectionContent)
 			if err != nil {
-				log.Printf("Error getting text for section %d: %v", sectionID, err)
+				log.Printf("Error getting content for section %d: %v", sectionID, err)
 				problematicIDs = append(problematicIDs, sectionID)
 				continue
 			}
-			for textRows.Next() {
-				var text string
-				if err := textRows.Scan(&text); err != nil {
-					textRows.Close()
-					log.Printf("Error scanning text for section %d: %v", sectionID, err)
-					problematicIDs = append(problematicIDs, sectionID)
-					continue
-				}
-				texts = append(texts, text)
-			}
-			textRows.Close()
-			fullSectionText := articleTitles[i] + " - " + sectionTitles[i] + "\n\n" + strings.Join(texts, "\n\n")
+
+			fullSectionText := articleTitles[i] + " - " + sectionTitles[i] + "\n\n" + sectionContent
 
 			embedding, err := aiEmbeddings(options.aiModelPrefixSave + fullSectionText)
 			if err != nil {

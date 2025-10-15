@@ -1,4 +1,4 @@
-// Copyright (C) 2024 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -11,9 +11,9 @@ type SearchResult struct {
 }
 
 type ArticleResultSection struct {
-	ID    int      `json:"id"`
-	Title string   `json:"title"`
-	Texts []string `json:"texts"`
+	ID      int    `json:"id"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
 }
 
 type ArticleResult struct {

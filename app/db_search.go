@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -33,21 +33,8 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			return nil, err
 		}
 
-		contentQuery := `
-			SELECT text
-			FROM hashes
-			WHERE id = (
-				SELECT hash_id
-				FROM content
-				WHERE section_id = (
-					SELECT id
-					FROM sections
-					WHERE article_id = ?
-					LIMIT 1
-				)
-			)
-			`
-		err = h.db.QueryRow(contentQuery, result.ArticleID, result.ArticleID).Scan(&result.Text)
+		contentQuery := `SELECT content FROM sections WHERE article_id = ? LIMIT 1`
+		err = h.db.QueryRow(contentQuery, result.ArticleID).Scan(&result.Text)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
@@ -60,9 +47,15 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 
 func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult, error) {
 	sqlQuery := `
-		SELECT rowid, text, bm25(hash_search) as power
-		FROM hash_search
-		WHERE hash_search MATCH ?
+		SELECT
+			s.article_id,
+			a.title,
+			s.content,
+			bm25(section_search) as power
+		FROM section_search
+		JOIN sections s ON section_search.rowid = s.id
+		JOIN articles a ON s.article_id = a.id
+		WHERE section_search MATCH ?
 		ORDER BY power
 		LIMIT ?;
 	`
@@ -75,22 +68,7 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
-		var contentID int
-		if err := rows.Scan(&contentID, &result.Text, &result.Power); err != nil {
-			return nil, err
-		}
-		articleQuery := `
-			SELECT id, title
-			FROM articles
-			WHERE articles.id = (
-				SELECT article_id 
-				FROM sections 
-				WHERE sections.id = 
-					(SELECT section_id FROM content WHERE content.hash_id=?)
-			)
-		`
-		err = h.db.QueryRow(articleQuery, contentID).Scan(&result.ArticleID, &result.Title)
-		if err != nil && err != sql.ErrNoRows {
+		if err := rows.Scan(&result.ArticleID, &result.Title, &result.Text, &result.Power); err != nil {
 			return nil, err
 		}
 		result.Type = "C"

@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>
+// Copyright (C) by Ubaldo Porcheddu <ubaldo@eja.it>
 
 package main
 
@@ -41,30 +41,16 @@ func (h *DBHandler) initializeDB() error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			article_id INTEGER,
 			title TEXT,
+			content TEXT,
 			pow INTEGER DEFAULT 0,
 			FOREIGN KEY(article_id) REFERENCES articles(id)
 		)`,
-
-		`CREATE TABLE IF NOT EXISTS content (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			section_id INTEGER,
-			hash_id INTEGER NOT NULL,
-			FOREIGN KEY(section_id) REFERENCES sections(id),
-			FOREIGN KEY(hash_id) REFERENCES hashes(id)
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS hashes (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			hash TEXT UNIQUE NOT NULL,
-			text TEXT NOT NULL,
-			pow INTEGER DEFAULT 0
-		)`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search USING fts5(
-			text,
-			content='hashes',
+		`CREATE VIRTUAL TABLE IF NOT EXISTS section_search USING fts5(
+			title, content,
+			content='sections',
 			content_rowid='id'
 		)`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS hash_search_vocabulary USING fts5vocab(hash_search, row)`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS section_search_vocabulary USING fts5vocab(section_search, row)`,
 
 		`CREATE TABLE IF NOT EXISTS vocabulary (term TEXT)`,
 
@@ -87,9 +73,6 @@ func (h *DBHandler) initializeDB() error {
 
 		`CREATE INDEX IF NOT EXISTS idx_vectors_ann_index_chunk_id_position ON vectors_ann_index (chunk_id, chunk_position)`,
 		`CREATE INDEX IF NOT EXISTS idx_sections_article_id ON sections(article_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_content_section_id ON content(section_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_hashes_id ON hashes(id)`,
-		`CREATE INDEX IF NOT EXISTS idx_content_hash_id ON content(hash_id)`,
 	}
 	for _, query := range queries {
 		if _, err := h.db.Exec(query); err != nil {
@@ -193,31 +176,6 @@ func (h *DBHandler) Optimize() error {
 		return fmt.Errorf("error deleting duplicate sections: %v", err)
 	}
 
-	log.Println("Updating hashes for orphaned content")
-	_, err = tx.Exec(`
-		UPDATE hashes
-		SET pow = pow - 1
-		WHERE id IN (
-			SELECT hash_id
-			FROM content
-			WHERE section_id NOT IN (SELECT id FROM sections)
-		)`)
-	if err != nil {
-		return fmt.Errorf("error updating hashes for orphaned content: %v", err)
-	}
-
-	log.Println("Deleting orphaned content")
-	_, err = tx.Exec("DELETE FROM content WHERE section_id NOT IN (SELECT id FROM sections)")
-	if err != nil {
-		return fmt.Errorf("error deleting orphaned content: %v", err)
-	}
-
-	log.Println("Deleting unused hashes")
-	_, err = tx.Exec("DELETE FROM hashes WHERE pow <= 0")
-	if err != nil {
-		return fmt.Errorf("error deleting hashes with pow <= 0: %v", err)
-	}
-
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
@@ -233,7 +191,7 @@ func (h *DBHandler) Optimize() error {
 
 func (h *DBHandler) IsEmpty() bool {
 	var count int
-	if err := h.db.QueryRow("SELECT COUNT(*) FROM hashes").Scan(&count); err != nil {
+	if err := h.db.QueryRow("SELECT COUNT(*) FROM sections").Scan(&count); err != nil {
 		return true
 	}
 	return count == 0
@@ -267,58 +225,14 @@ func (h *DBHandler) ArticlePut(article OutputArticle) error {
 	for _, item := range article.Items {
 		title, _ := item["title"].(string)
 		pow, _ := item["pow"].(int)
+		content, _ := item["content"].(string)
 
-		result, err := tx.Exec(
-			"INSERT INTO sections (article_id, title, pow) VALUES (?, ?, ?)",
-			article.ID, title, pow,
+		_, err := tx.Exec(
+			"INSERT INTO sections (article_id, title, content, pow) VALUES (?, ?, ?, ?)",
+			article.ID, title, content, pow,
 		)
 		if err != nil {
 			return fmt.Errorf("error inserting section: %v", err)
-		}
-
-		sectionID, err := result.LastInsertId()
-		if err != nil {
-			return fmt.Errorf("error getting section ID: %v", err)
-		}
-
-		textEntries, ok := item["text"].([]map[string]string)
-		if !ok {
-			return fmt.Errorf("invalid type for item['text']: %T", item["text"])
-		}
-
-		for _, entry := range textEntries {
-			hash := entry["hash"]
-			text := entry["text"]
-
-			result, err = tx.Exec(
-				"INSERT OR IGNORE INTO hashes (hash, text) VALUES (?, ?)",
-				hash, text,
-			)
-			if err != nil {
-				return fmt.Errorf("error inserting hash: %v", err)
-			}
-			var hashID int
-			err = tx.QueryRow("SELECT id FROM hashes WHERE hash = ?", hash).Scan(&hashID)
-			if err != nil {
-				return fmt.Errorf("error getting hash ID: %v", err)
-			}
-
-			if err != nil {
-				return fmt.Errorf("error inserting hash to fts: %v", err)
-			}
-
-			_, err = tx.Exec("UPDATE hashes SET pow = pow + 1 WHERE id = ?", hashID)
-			if err != nil {
-				return fmt.Errorf("error updating hash pow: %v", err)
-			}
-
-			_, err = tx.Exec(
-				"INSERT INTO content (section_id, hash_id) VALUES (?, ?)",
-				sectionID, hashID,
-			)
-			if err != nil {
-				return fmt.Errorf("error inserting content: %v", err)
-			}
 		}
 	}
 
@@ -331,25 +245,21 @@ func (h *DBHandler) ArticleGet(articleID int) (ArticleResult, error) {
 	}
 
 	sqlQuery := `
-		SELECT 
-			a.id AS article_id,
-			a.title AS article_title,
-			a.entity AS article_entity,
-			s.title AS section_title,
-			s.id AS section_id,
-			h.text AS content
-		FROM 
+		SELECT
+			a.id,
+			a.title,
+			a.entity,
+			s.id,
+			s.title,
+			s.content
+		FROM
 			articles a
-		JOIN 
+		JOIN
 			sections s ON a.id = s.article_id
-		JOIN 
-			content c ON s.id = c.section_id
-		JOIN 
-			hashes h ON c.hash_id = h.id
-		WHERE 
+		WHERE
 			a.id = ?
-		ORDER BY 
-			s.id ASC, c.id ASC;
+		ORDER BY
+			s.id ASC;
 	`
 
 	rows, err := h.db.Query(sqlQuery, articleID)
@@ -358,47 +268,34 @@ func (h *DBHandler) ArticleGet(articleID int) (ArticleResult, error) {
 	}
 	defer rows.Close()
 
+	var isFirstRow = true
 	for rows.Next() {
 		var (
-			title        string
-			entity       string
-			sectionID    int
-			sectionTitle string
-			content      string
+			artID     int
+			artTitle  string
+			artEntity string
+			section   ArticleResultSection
 		)
 
 		if err := rows.Scan(
-			&article.ID,
-			&title,
-			&entity,
-			&sectionTitle,
-			&sectionID,
-			&content,
+			&artID,
+			&artTitle,
+			&artEntity,
+			&section.ID,
+			&section.Title,
+			&section.Content,
 		); err != nil {
 			return article, fmt.Errorf("error scanning result: %v", err)
 		}
 
-		article.Title = title
-		article.Entity = entity
-
-		var section *ArticleResultSection
-		for i, sec := range article.Sections {
-			if sec.Title == sectionTitle {
-				section = &article.Sections[i]
-				break
-			}
+		if isFirstRow {
+			article.ID = artID
+			article.Title = artTitle
+			article.Entity = artEntity
+			isFirstRow = false
 		}
 
-		if section == nil {
-			article.Sections = append(article.Sections, ArticleResultSection{
-				Title: sectionTitle,
-				ID:    sectionID,
-				Texts: []string{},
-			})
-			section = &article.Sections[len(article.Sections)-1]
-		}
-
-		section.Texts = append(section.Texts, content)
+		article.Sections = append(article.Sections, section)
 	}
 
 	if article.ID == 0 {
