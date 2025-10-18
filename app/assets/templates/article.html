@@ -5,9 +5,7 @@
    
     {{range .Result.Sections}}
       <h2 class="mt-4 mb-3">{{.Title}}</h2>
-      {{range .Texts}}
-        <p class="mb-3" style="white-space: pre-line;">{{.}}</p>
-      {{end}}
+      <p class="mb-3" style="white-space: pre-line;">{{.Content}}</p>
     {{end}}
     
     <div class="mb-4 text-center">

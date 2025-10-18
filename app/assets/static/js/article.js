@@ -39,12 +39,12 @@ function articleDisplay() {
         title.textContent = section.title;
         title.id = `section-${sectionIndex}`;
         sectionDiv.appendChild(title);
-        section.texts.forEach((text, textIndex) => {
-            const p = document.createElement('p');
-            p.textContent = text;
-            p.id = `text-${sectionIndex}-${textIndex}`;
-            sectionDiv.appendChild(p);
-        });
+
+        const p = document.createElement('p');
+        p.textContent = section.content;
+        p.id = `content-${sectionIndex}`;
+        sectionDiv.appendChild(p);
+
         container.appendChild(sectionDiv);
     });
     document.getElementById('searchSection').classList.add('d-none');
@@ -57,16 +57,10 @@ async function articlePlay() {
         if (!App.isPlaying) {
             break;
         }
-        await articlePlayCurrent(true);
-        for (App.currentText = 0; App.currentText < App.article.sections[App.currentSection].texts.length; App.currentText++) {
-            if (!App.isPlaying) {
-                break;
-            }
-            await articlePlayCurrent();
-        }
+        await articlePlayCurrent();
     }
-    if (App.currentSection > 0) {
-        App.currentSection--
+    if (App.currentSection > 0 && App.currentSection === App.article.sections.length) {
+        App.currentSection--;
     }
 }
 
@@ -76,67 +70,46 @@ async function articleStop() {
 }
 
 function articlePlayNextSection() {
-    App.currentText = 0;
     if (App.currentSection < App.article.sections.length - 1) {
         App.currentSection++;
     } else {
         App.currentSection = 0;
     }
-    articlePlayCurrent(true);
+    articlePlayCurrent();
 }
 
 function articlePlayPreviousSection() {
-    App.currentText = 0;
     if (App.currentSection > 0) {
         App.currentSection--;
     } else {
         App.currentSection = App.article.sections.length - 1;
     }
-    articlePlayCurrent(true);
-}
-
-function articlePlayNextText() {
-    if (App.currentText < App.article.sections[App.currentSection].texts.length - 1) {
-        App.currentText++;
-    } else if (App.currentSection < App.article.sections.length - 1) {
-        App.currentSection++;
-        App.currentText = 0;
-    } else {
-        App.currentSection = 0;
-        App.currentText = 0;
-    }
     articlePlayCurrent();
 }
 
-function articlePlayPreviousText() {
-    if (App.currentText > 0) {
-        App.currentText--;
-    } else if (App.currentSection > 0) {
-        App.currentSection--;
-        App.currentText = App.article.sections[App.currentSection].texts.length - 1;
+async function articlePlayCurrent() {
+    if (!App.isPlaying || !App.article.sections[App.currentSection]) {
+        return;
     }
-    articlePlayCurrent();
-}
 
-async function articlePlayCurrent(section = false) {
-    if (section) {
-        highlightCurrent(true);
-        if (App.currentSection == 0) {
-            await TTS(App.article.title);
-        } else {
-            await TTS(App.article.sections[App.currentSection].title);
-        }
-        await sleep(1500);
-    } else {
-        highlightCurrent(false);
-        await TTS(App.article.sections[App.currentSection].texts[App.currentText]);
-    }
+    highlightCurrent(true);
+    const titleToSpeak = (App.currentSection === 0 && App.article.title) ? App.article.title : App.article.sections[App.currentSection].title;
+    await TTS(titleToSpeak);
+    if (!App.isPlaying) return;
+    await sleep(1500);
+    if (!App.isPlaying) return;
+
+
+    highlightCurrent(false);
+    const contentToSpeak = App.article.sections[App.currentSection].content;
+    await TTS(contentToSpeak);
 }
 
 function highlightCurrent(section = false) {
     document.querySelectorAll('.highlight, .highlight-section').forEach(el => {
         el.classList.remove('highlight', 'highlight-section');
     });
+
     if (section) {
         let sectionTitle = document.getElementById(`section-${App.currentSection}`);
         if (App.currentSection == 0) {
@@ -150,7 +123,7 @@ function highlightCurrent(section = false) {
             });
         }
     } else {
-        const currentElement = document.getElementById(`text-${App.currentSection}-${App.currentText}`);
+        const currentElement = document.getElementById(`content-${App.currentSection}`);
         if (currentElement) {
             currentElement.classList.add('highlight');
             currentElement.scrollIntoView({

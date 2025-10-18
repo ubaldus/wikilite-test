@@ -24,7 +24,7 @@ window.App = {
                 searching: "Searching...",
                 searchNoResults: "I am sorry, I didn't find anything.",
                 searchOpen: "Do you want to open this?",
-                articleHelp: "You can say: play, stop, repeat, next, previous, next section, previous section, or home.",
+                articleHelp: "You can say: play, stop, repeat, next, previous or home.",
                 articlePrompt: "How can I help you?"
             },
             'commands': {
@@ -35,8 +35,6 @@ window.App = {
                 articleRepeat: ["repeat"],
                 articleNext: ["next"],
                 articlePrevious: ["previous"],
-                articleNextSection: ["next section"],
-                articlePreviousSection: ["previous section"],
                 articleHome: "home"
             },
         },
@@ -46,7 +44,7 @@ window.App = {
                 searching: "sto cercando...",
                 searchNoResults: "Mi dispiace ma non ho trovato niente.",
                 searchOpen: "Vuoi lèggere quest'articolo?",
-                articleHelp: "Puoi dire: leggi, pausa, ripeti, indietro, avanti, sezione successiva, sezione precedente o ricarica.",
+                articleHelp: "Puoi dire: leggi, pausa, ripeti, indietro, avanti o ricarica.",
                 articlePrompt: "Dimmi?"
             },
             'commands': {
@@ -57,8 +55,6 @@ window.App = {
                 articleRepeat: ["ripeti"],
                 articleNext: ["avanti"],
                 articlePrevious: ["indietro"],
-                articleNextSection: ["sezione successiva"],
-                articlePreviousSection: ["sezione precedente"],
                 articleHome: ["ricarica"]
             },
         },
@@ -68,7 +64,7 @@ window.App = {
                 searching: "Buscando...",
                 searchNoResults: "Lo siento, no he encontrado nada.",
                 searchOpen: "¿Quieres abrir esto?",
-                articleHelp: "Puedes decir: reproducir, parar, repetir, siguiente, anterior, siguiente sección, sección anterior o inicio.",
+                articleHelp: "Puedes decir: reproducir, parar, repetir, siguiente, anterior o inicio.",
                 articlePrompt: "¿Cómo puedo ayudarte?"
             },
             'commands': {
@@ -79,8 +75,6 @@ window.App = {
                 articleRepeat: ["repetir"],
                 articleNext: ["siguiente"],
                 articlePrevious: ["anterior"],
-                articleNextSection: ["siguiente sección"],
-                articlePreviousSection: ["sección anterior"],
                 articleHome: ["inicio"]
             },
         },
@@ -90,7 +84,7 @@ window.App = {
                 searching: "Suche läuft...",
                 searchNoResults: "Es tut mir leid, ich habe nichts gefunden.",
                 searchOpen: "Möchten Sie das öffnen?",
-                articleHelp: "Sie können sagen: abspielen, stoppen, wiederholen, nächster, vorheriger, nächster Abschnitt, vorheriger Abschnitt oder Startseite.",
+                articleHelp: "Sie können sagen: abspielen, stoppen, wiederholen, nächster, vorheriger oder Startseite.",
                 articlePrompt: "Wie kann ich Ihnen helfen?"
             },
             'commands': {
@@ -101,8 +95,6 @@ window.App = {
                 articleRepeat: ["wiederholen"],
                 articleNext: ["nächster"],
                 articlePrevious: ["vorheriger"],
-                articleNextSection: ["nächster Abschnitt"],
-                articlePreviousSection: ["vorheriger Abschnitt"],
                 articleHome: ["Startseite"]
             },
         },

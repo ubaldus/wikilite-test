@@ -31,13 +31,9 @@ if (App.speechButton) {
                 } else if (commands.articleStop.includes(command)) {
                     articleStop();
                 } else if (commands.articleNext.includes(command)) {
-                    articlePlayNextText();
-                } else if (commands.articlePrevious.includes(command)) {
-                    articlePlayPreviousText();
-                } else if (commands.articleNextSection.includes(command)) {
                     articlePlayNextSection();
-                } else if (commands.articlePreviousSection.includes(command)) {
-                    articlePlayPreviousSection();
+                } else if (commands.articlePrevious.includes(command)) {
+                    articlePlayPreviousSectiont();
                 } else if (commands.articleHome.includes(command)) {
                     document.location.reload();
                 } else {

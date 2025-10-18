@@ -20,11 +20,7 @@ jobs:
           go-version: '1.24'
 
       - name: Build wikilite for MacOS AMD64
-        run: |
-          CGO_ENABLED=1 \
-          GOOS=darwin \
-          GOARCH=amd64 \
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite ./app
+        run: make
 
       - name: Copy script to the root directory
         run: cp scripts/start.command .
@@ -57,11 +53,7 @@ jobs:
           go-version: '1.24'
 
       - name: Build wikilite for MacOS ARM64
-        run: |
-          CGO_ENABLED=1 \
-          GOOS=darwin \
-          GOARCH=arm64 \
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite ./app
+        run: make
 
       - name: Copy script to the root directory
         run: cp scripts/start.command .
@@ -94,11 +86,7 @@ jobs:
           go-version: '1.24'
           
       - name: Build wikilite for Linux AMD64
-        run: |
-          CGO_ENABLED=1 \
-          GOOS=linux \
-          GOARCH=amd64 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
+        run: make
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -131,11 +119,7 @@ jobs:
           go-version: '1.24'
 
       - name: Build wikilite for Linux ARM64
-        run: |
-          CGO_ENABLED=1 \
-          GOOS=linux \
-          GOARCH=arm64 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
+        run: make
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -152,7 +136,7 @@ jobs:
           asset_path: wikilite-linux-arm64.tar.gz
           asset_name: wikilite-linux-arm64.tar.gz
           asset_content_type: application/octet-stream
-
+          
   build-linux-arm32:
     name: Build for Linux ARM32
     runs-on: ubuntu-latest
@@ -201,24 +185,21 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.24'
 
       - name: Build wikilite for Windows AMD64
-        run: |
-          $env:CGO_ENABLED = "1"; 
-          $env:GOOS = "windows"; 
-          $env:GOARCH = "amd64"; 
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe ./app
+        shell: bash
+        run: make
 
       - name: Copy script to the root directory
-        run: cp scripts/start.bat .
+        run: Copy-Item scripts/start.bat -Destination .
 
       - name: Compress artifact
         run: Compress-Archive -Path wikilite.exe, start.bat -DestinationPath wikilite-windows-amd64.zip
@@ -231,41 +212,5 @@ jobs:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: wikilite-windows-amd64.zip
           asset_name: wikilite-windows-amd64.zip
-          asset_content_type: application/octet-stream
+          asset_content_type: application/zip
 
-  build-windows-arm64:
-    name: Build for Windows ARM64
-    runs-on: windows-arm64
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-
-      - name: Build wikilite for Windows ARM64
-        run: |
-          $env:CGO_ENABLED = "1"; 
-          $env:GOOS = "windows"; 
-          $env:GOARCH = "arm64"; 
-          go build -tags=fts5 -ldflags="-s -w" -o wikilite.exe ./app
-
-      - name: Copy script to the root directory
-        run: cp scripts/start.bat .
-
-      - name: Compress artifact
-        run: Compress-Archive -Path wikilite.exe, start.bat -DestinationPath wikilite-windows-arm64.zip
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-windows-arm64.zip
-          asset_name: wikilite-windows-arm64.zip
-          asset_content_type: application/octet-stream

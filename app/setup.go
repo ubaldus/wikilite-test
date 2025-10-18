@@ -53,7 +53,9 @@ func SetupFilterDBFiles(siblings []SetupSibling) []SetupSibling {
 	partRegex := regexp.MustCompile(`\.db(-\d+)?\.gz$`)
 	for _, sibling := range siblings {
 		if partRegex.MatchString(sibling.Rfilename) {
-			dbFiles = append(dbFiles, sibling)
+			if localAiEnabled() || SetupGetGGUFFileName(sibling.Rfilename) == "" {
+				dbFiles = append(dbFiles, sibling)
+			}
 		}
 	}
 	return dbFiles

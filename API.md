@@ -193,18 +193,12 @@ Content-Type: application/json
       {
         "id": 1234,
         "title": "History",
-        "texts": [
-          "Linux was created in 1991...",
-          "Linus Torvalds began working on Linux while studying..."
-        ]
+        "content": "Linux was created in 1991...",
       },
       {
         "id": 12345,
         "title": "Design Philosophy",
-        "texts": [
-          "Linux follows Unix philosophy...",
-          "The kernel is designed to be modular..."
-        ]
+        "content": "Linux follows Unix philosophy...",
       }
     ]
   }
