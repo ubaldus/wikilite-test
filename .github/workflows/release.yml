@@ -162,7 +162,7 @@ jobs:
           GOOS=linux \
           GOARCH=arm \
           GOARM=7 \
-          go build -tags=fts5 -ldflags="-s -w -extldflags '-static'" -o wikilite ./app
+          make
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
