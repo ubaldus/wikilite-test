@@ -86,7 +86,7 @@ jobs:
           go-version: '1.24'
           
       - name: Build wikilite for Linux AMD64
-        run: make
+        run: make static
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -119,7 +119,7 @@ jobs:
           go-version: '1.24'
 
       - name: Build wikilite for Linux ARM64
-        run: make
+        run: make static
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
@@ -162,7 +162,7 @@ jobs:
           GOOS=linux \
           GOARCH=arm \
           GOARM=7 \
-          make
+          make static
 
       - name: Copy script to the root directory
         run: cp scripts/start.sh .
