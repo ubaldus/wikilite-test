@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-int llama_embeddings_init(const char* model_path);
+int llama_embeddings_init(const char* model_path, int n_threads);
 
 int llama_embeddings_get_dimension(void);
 

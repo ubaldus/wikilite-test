@@ -8,9 +8,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 )
 
-const Version = "0.17.1"
+const Version = "0.17.2"
 
 type Config struct {
 	aiApiKey            string
@@ -18,6 +19,7 @@ type Config struct {
 	aiModel             string
 	aiModelPrefixSave   string
 	aiModelPrefixSearch string
+	aiThreads           int
 	aiSync              bool
 	cli                 bool
 	dbPath              string
@@ -47,6 +49,7 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.aiModel, "ai-model", "", "AI embedding model")
 	flag.StringVar(&options.aiModelPrefixSave, "ai-model-prefix-save", "", "AI embedding model task prefix to import a document")
 	flag.StringVar(&options.aiModelPrefixSearch, "ai-model-prefix-search", "", "AI embedding model task prefix to perform a search")
+	flag.IntVar(&options.aiThreads, "ai-threads", 0, "AI embedding generation threads (default all)")
 	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI generate embeddings")
 
 	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
@@ -77,6 +80,10 @@ func parseConfig() (*Config, error) {
 	}
 
 	flag.Parse()
+
+	if options.aiThreads == 0 {
+		options.aiThreads = runtime.NumCPU()
+	}
 
 	return options, nil
 }

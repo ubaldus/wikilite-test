@@ -18,41 +18,75 @@ void silent_log_callback(ggml_log_level level, const char * text, void * user_da
     (void)user_data;
 }
 
-int llama_embeddings_init(const char* model_path) {
+int llama_embeddings_init(const char* model_path, int n_threads) {
     llama_log_set(silent_log_callback, NULL);
 
     if (g_initialized) {
         return 0;
     }
 
-    g_params.model.path = model_path;
-    g_params.embedding = true;
-    g_params.embd_normalize = 2;
-    g_params.warmup = false;
+    common_params temp_params = {};
+    temp_params.model.path = model_path;
+    temp_params.embedding = true;
+    temp_params.embd_normalize = 2;
+    temp_params.warmup = false;
+    
+    if (n_threads <= 0) n_threads = 1;
+    temp_params.cpuparams.n_threads = n_threads;
+    temp_params.cpuparams_batch.n_threads = n_threads;
 
-    if (g_params.n_parallel == 1) {
-        g_params.kv_unified = true;
+    temp_params.n_ctx = 512;
+    temp_params.n_batch = 512;
+    temp_params.n_gpu_layers = 999;
+
+    common_init_result llama_init = common_init_from_params(temp_params);
+    llama_model* temp_model = llama_init.model.release();
+    
+    if (temp_model == nullptr) {
+        llama_log_set(NULL, NULL);
+        fprintf(stderr, "Error: Failed to initialize model from '%s'\n", model_path);
+        return 1;
     }
 
-    g_params.n_gpu_layers = 999;
+    if (llama_init.context) {
+        llama_free(llama_init.context.release());
+    }
 
-    common_init_result llama_init = common_init_from_params(g_params);
-    g_model = llama_init.model.release();
-    g_ctx = llama_init.context.release();
+    const int model_ctx_size = llama_model_n_ctx_train(temp_model);
+    
+    common_params final_params = {};
+    final_params.model.path = model_path;
+    final_params.embedding = true;
+    final_params.embd_normalize = 2;
+    final_params.warmup = false;
+    final_params.cpuparams.n_threads = n_threads;
+    final_params.cpuparams_batch.n_threads = n_threads;
+    final_params.n_ctx = model_ctx_size;
+    
+    final_params.n_batch = model_ctx_size;
+
+    final_params.n_gpu_layers = 999;
+
+    llama_model_free(temp_model);
+
+    common_init_result llama_init_final = common_init_from_params(final_params);
+    g_model = llama_init_final.model.release();
+    g_ctx = llama_init_final.context.release();
 
     if (g_model == nullptr || g_ctx == nullptr) {
         llama_log_set(NULL, NULL);
         fprintf(stderr, "Error: Failed to initialize model or context from '%s'\n", model_path);
+        if (g_model) llama_model_free(g_model);
+        if (g_ctx) llama_free(g_ctx);
+        g_model = nullptr;
+        g_ctx = nullptr;
         return 1;
     }
 
+    g_params = final_params;
+
     g_initialized = true;
     return 0;
-}
-
-int llama_embeddings_get_dimension(void) {
-    if (!g_initialized) return -1;
-    return llama_model_n_embd(g_model);
 }
 
 float* llama_embeddings_get(const char* text, int* n_embd_out) {
@@ -61,8 +95,24 @@ float* llama_embeddings_get(const char* text, int* n_embd_out) {
         return NULL;
     }
 
+    const int max_context_tokens = llama_n_ctx(g_ctx);
+    
     std::vector<llama_token> tokens = common_tokenize(g_ctx, text, true, true);
     if (tokens.empty()) {
+        *n_embd_out = 0;
+        return NULL;
+    }
+
+
+    if ((int)tokens.size() > max_context_tokens) {
+        fprintf(stderr, "Warning: Input text exceeds maximum context length (%d tokens). Truncating to %d tokens.\n", 
+                (int)tokens.size(), max_context_tokens);
+        tokens.resize(max_context_tokens);
+    }
+
+    if ((int)tokens.size() > g_params.n_batch) {
+        fprintf(stderr, "Error: Token count (%zu) exceeds batch size (%d). This shouldn't happen after truncation.\n", 
+                tokens.size(), g_params.n_batch);
         *n_embd_out = 0;
         return NULL;
     }
@@ -130,3 +180,9 @@ void llama_embeddings_free(void) {
         g_initialized = false;
     }
 }
+
+int llama_embeddings_get_dimension(void) {
+    if (!g_initialized) return -1;
+    return llama_model_n_embd(g_model);
+}
+

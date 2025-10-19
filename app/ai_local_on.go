@@ -24,9 +24,10 @@ func localAiEnabled() bool {
 
 func localAiInit(modelPath string) error {
 	cModelPath := C.CString(modelPath)
+	cThreadNumber := C.int(options.aiThreads)
 	defer C.free(unsafe.Pointer(cModelPath))
 
-	if result := C.llama_embeddings_init(cModelPath); result != 0 {
+	if result := C.llama_embeddings_init(cModelPath, cThreadNumber); result != 0 {
 		return fmt.Errorf("failed to initialize llama embeddings: error code %d", int(result))
 	}
 
@@ -37,6 +38,7 @@ func localAiEmbeddings(input string) ([]float32, error) {
 	if C.llama_embeddings_get_dimension() < 1 {
 		return nil, fmt.Errorf("model not initialized or already freed")
 	}
+
 	cText := C.CString(input)
 	defer C.free(unsafe.Pointer(cText))
 

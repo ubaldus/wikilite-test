@@ -11,15 +11,8 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 )
-
-var SetupProgressMap = struct {
-	sync.RWMutex
-	m map[string]float64
-}{m: make(map[string]float64)}
 
 type APIRequest struct {
 	Query string `json:"query,omitempty"`
@@ -246,132 +239,8 @@ func (s *WebServer) handleAPIArticle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleSetup(w http.ResponseWriter, r *http.Request) {
-	if db.IsEmpty() {
-		action := r.URL.Query().Get("action")
-		switch action {
-		case "list":
-			setupListHandler(w, r)
-		case "install":
-			setupInstallHandler(w, r)
-		case "progress":
-			setupProgressHandler(w, r)
-		default:
-			http.Error(w, "Invalid action parameter", http.StatusBadRequest)
-		}
-	} else {
-		http.Error(w, "Setup not available now", http.StatusForbidden)
-	}
-}
-
-func setupListHandler(w http.ResponseWriter, r *http.Request) {
-	datasetInfo, err := SetupFetchDatasetInfo()
-	if err != nil {
-		http.Error(w, "Error fetching dataset info", http.StatusInternalServerError)
-		return
-	}
-
-	dbFiles := SetupFilterDBFiles(datasetInfo.Siblings)
-	json.NewEncoder(w).Encode(dbFiles)
-}
-
-func setupInstallHandler(w http.ResponseWriter, r *http.Request) {
-	if _, err := os.Stat(options.dbPath); err == nil {
-		if err := os.Remove(options.dbPath); err != nil {
-			http.Error(w, "Cannot overwrite current database", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	datasetInfo, err := SetupFetchDatasetInfo()
-	if err != nil {
-		http.Error(w, "Error fetching dataset info", http.StatusInternalServerError)
-		return
-	}
-
-	dbFiles := SetupFilterDBFiles(datasetInfo.Siblings)
-	if len(dbFiles) == 0 {
-		http.Error(w, "No valid database files found", http.StatusInternalServerError)
-		return
-	}
-
-	fileGroups := make(map[string][]SetupSibling)
-	for _, dbFile := range dbFiles {
-		baseName := strings.Split(dbFile.Rfilename, ".db")[0]
-		fileGroups[baseName] = append(fileGroups[baseName], dbFile)
-	}
-
-	selectedFile := r.URL.Query().Get("file")
-	if selectedFile == "" {
-		http.Error(w, "file parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	var selectedGroup []SetupSibling
-	for _, group := range fileGroups {
-		for _, file := range group {
-			if file.Rfilename == selectedFile {
-				selectedGroup = group
-				break
-			}
-		}
-		if selectedGroup != nil {
-			break
-		}
-	}
-
-	if selectedGroup == nil {
-		http.Error(w, "Selected file not found in dataset", http.StatusBadRequest)
-		return
-	}
-
-	err = SetupDownloadAndExtract(selectedGroup, func(file string, progress float64) {
-		SetupProgressMap.Lock()
-		SetupProgressMap.m[file] = progress
-		SetupProgressMap.Unlock()
-	}, nil)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	fmt.Fprintf(w, "Downloading and extracting %s", selectedFile)
-}
-
-func setupProgressHandler(w http.ResponseWriter, r *http.Request) {
-	file := r.URL.Query().Get("file")
-	if file == "" {
-		http.Error(w, "file parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
-	for {
-		SetupProgressMap.RLock()
-		progress, exists := SetupProgressMap.m[file]
-		SetupProgressMap.RUnlock()
-		if exists {
-			fmt.Fprintf(w, "data: %.2f\n\n", progress)
-			w.(http.Flusher).Flush()
-			if progress >= 100 {
-				SetupProgressMap.Lock()
-				delete(SetupProgressMap.m, file)
-				SetupProgressMap.Unlock()
-				return
-			}
-		}
-	}
-}
-
 func (s *WebServer) handleHome(w http.ResponseWriter, r *http.Request) {
-	if db.IsEmpty() {
-		http.ServeFile(w, r, "assets/static/setup.html")
-	} else {
-		s.handleHTMLSearch(w, r)
-	}
+	s.handleHTMLSearch(w, r)
 }
 
 func (s *WebServer) Start(host string, port int) error {
@@ -384,7 +253,6 @@ func (s *WebServer) Start(host string, port int) error {
 	http.HandleFunc("/api/search/semantic", s.handleAPISearchSemantic)
 	http.HandleFunc("/api/search/distance", s.handleAPISearchWordDistance)
 	http.HandleFunc("/api/article", s.handleAPIArticle)
-	http.HandleFunc("/api/setup", handleSetup)
 
 	subFS, err := fs.Sub(assets, "assets/static")
 	if err != nil {
