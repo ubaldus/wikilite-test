@@ -22,9 +22,6 @@ jobs:
       - name: Build wikilite for MacOS AMD64
         run: make
 
-      - name: Copy script to the root directory
-        run: cp scripts/start.command .
-
       - name: Compress artifact
         run: tar -czvf wikilite-macos-amd64.tar.gz wikilite start.command
 
@@ -54,9 +51,6 @@ jobs:
 
       - name: Build wikilite for MacOS ARM64
         run: make
-
-      - name: Copy script to the root directory
-        run: cp scripts/start.command .
 
       - name: Compress artifact
         run: tar -czvf wikilite-macos-arm64.tar.gz wikilite start.command
@@ -88,9 +82,6 @@ jobs:
       - name: Build wikilite for Linux AMD64
         run: make static
 
-      - name: Copy script to the root directory
-        run: cp scripts/start.sh .
-
       - name: Compress artifact
         run: tar -czvf wikilite-linux-amd64.tar.gz wikilite start.sh
 
@@ -120,9 +111,6 @@ jobs:
 
       - name: Build wikilite for Linux ARM64
         run: make static
-
-      - name: Copy script to the root directory
-        run: cp scripts/start.sh .
 
       - name: Compress artifact
         run: tar -czvf wikilite-linux-arm64.tar.gz wikilite start.sh
@@ -163,9 +151,6 @@ jobs:
           GOARCH=arm \
           GOARM=7 \
           make static
-
-      - name: Copy script to the root directory
-        run: cp scripts/start.sh .
           
       - name: Compress artifact
         run: tar -czvf wikilite-linux-arm32.tar.gz wikilite start.sh
@@ -197,9 +182,6 @@ jobs:
       - name: Build wikilite for Windows AMD64
         shell: bash
         run: make
-
-      - name: Copy script to the root directory
-        run: Copy-Item scripts/start.bat -Destination .
 
       - name: Compress artifact
         run: Compress-Archive -Path wikilite.exe, start.bat -DestinationPath wikilite-windows-amd64.zip
