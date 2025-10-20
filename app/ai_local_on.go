@@ -6,8 +6,9 @@ package main
 
 /*
 #cgo CFLAGS: -I../src
-#cgo LDFLAGS: -L../build/bin -lembedding_wrapper -lcommon -lllama -lggml -lggml-base -lggml-cpu -lstdc++ -lpthread -lm -ldl
-#cgo darwin LDFLAGS: -framework Accelerate
+#cgo linux LDFLAGS: -L../build/bin -lembedding_wrapper -lcommon -lllama -lggml -lggml-base -lggml-cpu -lstdc++ -lpthread -lm -ldl
+#cgo darwin LDFLAGS: -L../build/bin -lembedding_wrapper -lcommon -lllama -lggml -lggml-base -lggml-cpu -lstdc++ -framework Accelerate
+#cgo windows LDFLAGS: -L../build/bin -lembedding_wrapper -lcommon -lllama -l:ggml.a -l:ggml-base.a -l:ggml-cpu.a -lstdc++ -lws2_32 -lbcrypt -ladvapi32
 #include "llama_embeddings.h"
 #include <stdlib.h>
 */

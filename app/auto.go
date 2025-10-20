@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,17 +12,18 @@ import (
 func autoStart() {
 	exePath, err := os.Executable()
 	if err != nil {
-		log.Println(err)
+		log.Fatal(err)
 	}
 	exeDir := filepath.Dir(exePath)
 	if err := os.Chdir(exeDir); err != nil {
-		log.Println(err)
+		log.Fatal(err)
 	}
 	if _, err := os.Stat(options.dbPath); err != nil {
-		log.Println("path", err)
 		options.setup = true
+		fmt.Printf("When the setup is ready navigate to http://localhost:%d\n\n", options.webPort)
+	} else {
+		fmt.Printf("Navigate to http://localhost:%d\n", options.webPort)
 	}
 
 	options.web = true
-	options.log = true
 }

@@ -4,6 +4,8 @@ project(wikilite C CXX)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 set(LLAMA_BUILD_COMMON ON CACHE BOOL "Enable common utils" FORCE)
 
@@ -53,5 +55,7 @@ target_compile_features(embedding_wrapper PRIVATE cxx_std_17)
 target_include_directories(embedding_wrapper PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 set_target_properties(embedding_wrapper PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
