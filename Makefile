@@ -36,21 +36,21 @@ clean:
 	@rm -rf build
 	@rm -f wikilite wikilite.exe
 
-
+# Platform-specific variables
 ifeq ($(GOOS),windows)
 TARGET := wikilite.exe
-LIBRARY_NAME := embedding_wrapper.lib
-LIBRARY_PATH := build/bin/Release/$(LIBRARY_NAME)
+# For MinGW builds, libraries are in build/bin/ with .a extension and no 'lib' prefix
+LIBRARY_PATH := build/bin/embedding_wrapper.a
 SYSTEM_LIBS := -lws2_32 -lbcrypt -ladvapi32 -luser32 -lole32 -loleaut32
-WINDOWS_EXT_LDFLAGS := -L$(CURDIR)/build/bin/Release -lembedding_wrapper -lcommon -lllama -lggml $(SYSTEM_LIBS)
+# Use -l: syntax for exact filename matching with MinGW
+WINDOWS_EXT_LDFLAGS := -L$(CURDIR)/build/bin -l:embedding_wrapper.a -l:common.a -l:llama.a -l:ggml.a -l:ggml-base.a -l:ggml-cpu.a $(SYSTEM_LIBS)
 else
-LIBRARY_NAME := libembedding_wrapper.a
-LIBRARY_PATH := build/bin/$(LIBRARY_NAME)
+LIBRARY_PATH := build/bin/libembedding_wrapper.a
 WINDOWS_EXT_LDFLAGS :=
 endif
 
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
-
+# For Windows, use the Windows-specific flags, for others use standard flags
 ifeq ($(GOOS),windows)
 EXT_LDFLAGS := $(WINDOWS_EXT_LDFLAGS) $(EXT_LDFLAGS)
 else
@@ -71,5 +71,5 @@ endif
 
 $(LIBRARY_PATH): CMakeLists.txt $(shell find src -type f)
 	@mkdir -p build
-	@cd build && cmake ..
-	@cmake --build build --config Release -j
+	@cd build && cmake -G "MinGW Makefiles" ..
+	@cmake --build build -j
