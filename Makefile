@@ -35,12 +35,10 @@ clean:
 
 TARGET := wikilite
 LIBRARY_PATH := build/bin/libembedding_wrapper.a
-CMAKE_GENERATOR_FLAG :=
 
 ifeq ($(GOOS),windows)
   TARGET := wikilite.exe
   LIBRARY_PATH := build/bin/embedding_wrapper.a
-  CMAKE_GENERATOR_FLAG := -G "MinGW Makefiles"
 endif
 
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
@@ -55,5 +53,5 @@ endif
 
 $(LIBRARY_PATH): CMakeLists.txt $(shell find src -type f)
 	@mkdir -p build
-	@cd build && cmake $(CMAKE_GENERATOR_FLAG) ..
+	@cd build && cmake ..
 	@cmake --build build -j

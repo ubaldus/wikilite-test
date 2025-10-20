@@ -35,13 +35,6 @@ set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "Disable llama examples" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "Disable curl support" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "Disable OpenMP support" FORCE)
 
-if(WIN32)
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-    if(MSVC)
-        add_compile_options(/wd4244 /wd4267 /wd4996)
-    endif()
-endif()
-
 add_subdirectory(llama.cpp)
 
 add_library(embedding_wrapper STATIC 
