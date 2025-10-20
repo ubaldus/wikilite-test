@@ -3,9 +3,6 @@ GOARCH := $(shell go env GOARCH)
 EXT_LDFLAGS := 
 
 TARGET := wikilite
-ifeq ($(GOOS),windows)
-	TARGET := wikilite.exe
-endif
 
 LOCAL_EMBEDDINGS_SUPPORTED := false
 ifeq ($(GOOS),darwin)
@@ -39,16 +36,26 @@ clean:
 	@rm -rf build
 	@rm -f wikilite wikilite.exe
 
+
 ifeq ($(GOOS),windows)
+TARGET := wikilite.exe
 LIBRARY_NAME := embedding_wrapper.lib
+LIBRARY_PATH := build/bin/Release/$(LIBRARY_NAME)
+SYSTEM_LIBS := -lws2_32 -lbcrypt -ladvapi32 -luser32 -lole32 -loleaut32
+WINDOWS_EXT_LDFLAGS := -L$(CURDIR)/build/bin/Release -lembedding_wrapper -lcommon -lllama -lggml $(SYSTEM_LIBS)
 else
 LIBRARY_NAME := libembedding_wrapper.a
+LIBRARY_PATH := build/bin/$(LIBRARY_NAME)
+WINDOWS_EXT_LDFLAGS :=
 endif
 
-LIBRARY_PATH := build/bin/$(LIBRARY_NAME)
-
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
-EXT_LDFLAGS := -L$(CURDIR)/build/bin $(EXT_LDFLAGS)
+
+ifeq ($(GOOS),windows)
+EXT_LDFLAGS := $(WINDOWS_EXT_LDFLAGS) $(EXT_LDFLAGS)
+else
+EXT_LDFLAGS := -L$(CURDIR)/build/bin -lembedding_wrapper -lcommon -lllama -lggml $(EXT_LDFLAGS)
+endif
 
 wikilite: $(LIBRARY_PATH) $(shell find app -type f)
 	@echo "Building wikilite with local embeddings support..."
