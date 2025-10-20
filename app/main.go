@@ -11,7 +11,7 @@ import (
 	"runtime"
 )
 
-const Version = "0.17.2"
+const Version = "0.17.3"
 
 type Config struct {
 	aiApiKey            string
@@ -23,6 +23,7 @@ type Config struct {
 	aiSync              bool
 	cli                 bool
 	dbPath              string
+	help                bool
 	language            string
 	limit               int
 	log                 bool
@@ -61,6 +62,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.log, "log", false, "Enable logging")
 	flag.StringVar(&options.logFile, "log-file", "", "Log file path")
 	flag.BoolVar(&options.setup, "setup", false, "Download a ready made database and embeddings model")
+	flag.BoolVar(&options.help, "help", false, "This help")
 
 	flag.BoolVar(&options.web, "web", false, "Enable web interface")
 	flag.StringVar(&options.webHost, "web-host", "localhost", "Web server host")
@@ -94,9 +96,13 @@ func main() {
 		log.Fatalf("Error parsing command line: %v\n", err)
 	}
 
-	if flag.NFlag() == 0 {
+	if options.help {
 		flag.Usage()
 		os.Exit(0)
+	}
+
+	if len(os.Args) == 1 {
+		autoStart()
 	}
 
 	if options.setup {
