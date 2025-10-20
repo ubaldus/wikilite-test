@@ -19,6 +19,11 @@ ifeq ($(GOOS),linux)
     LOCAL_EMBEDDINGS_SUPPORTED := true
   endif
 endif
+ifeq ($(GOOS),windows)
+  ifeq ($(GOARCH),amd64)
+    LOCAL_EMBEDDINGS_SUPPORTED := true
+  endif
+endif
 
 .PHONY: all lint clean static
 
@@ -34,11 +39,18 @@ clean:
 	@rm -rf build
 	@rm -f wikilite wikilite.exe
 
+ifeq ($(GOOS),windows)
+LIBRARY_NAME := embedding_wrapper.lib
+else
+LIBRARY_NAME := libembedding_wrapper.a
+endif
+
+LIBRARY_PATH := build/bin/$(LIBRARY_NAME)
 
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
 EXT_LDFLAGS := -L$(CURDIR)/build/bin $(EXT_LDFLAGS)
 
-wikilite: build/bin/libembedding_wrapper.a $(shell find app -type f)
+wikilite: $(LIBRARY_PATH) $(shell find app -type f)
 	@echo "Building wikilite with local embeddings support..."
 	go build -v -tags "fts5 aiLocal" -ldflags="-s -w -extldflags '$(EXT_LDFLAGS)'" -o $(TARGET) ./app
 
@@ -50,8 +62,7 @@ wikilite: $(shell find app -type f)
 
 endif
 
-build/bin/libembedding_wrapper.a: CMakeLists.txt $(shell find src -type f)
+$(LIBRARY_PATH): CMakeLists.txt $(shell find src -type f)
 	@mkdir -p build
 	@cd build && cmake ..
 	@cmake --build build --config Release -j
-

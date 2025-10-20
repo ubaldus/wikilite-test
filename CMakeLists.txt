@@ -4,6 +4,8 @@ project(wikilite C CXX)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 set(LLAMA_BUILD_COMMON ON CACHE BOOL "Enable common utils" FORCE)
 
@@ -33,6 +35,13 @@ set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "Disable llama examples" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "Disable curl support" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "Disable OpenMP support" FORCE)
 
+if(WIN32)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+    if(MSVC)
+        add_compile_options(/wd4244 /wd4267 /wd4996)
+    endif()
+endif()
+
 add_subdirectory(llama.cpp)
 
 add_library(embedding_wrapper STATIC 
@@ -53,5 +62,7 @@ target_compile_features(embedding_wrapper PRIVATE cxx_std_17)
 target_include_directories(embedding_wrapper PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 set_target_properties(embedding_wrapper PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
