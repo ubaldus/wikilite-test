@@ -23,5 +23,4 @@ func autoStart() {
 	}
 
 	options.web = true
-	options.log = true
 }
