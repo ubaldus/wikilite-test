@@ -179,21 +179,30 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Build wikilite for Windows AMD64
+      - name: Install MinGW
+        run: |
+          choco install mingw -y
+
+      - name: Build C++ libraries with MinGW
         shell: bash
+        run: |
+          mkdir -p build
+          cd build
+          cmake -G "MinGW Makefiles" ..
+          cmake --build . --config Release -j
+
+      - name: Build wikilite
         run: make
 
-      - name: Rename
-        shell: bash
-        run: mv wikilite.exe wikilite-windows-amd64.exe
-        
+      - name: Compress artifact
+        run: Compress-Archive -Path wikilite.exe -DestinationPath wikilite-windows-amd64.zip
+
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-windows-amd64.exe
-          asset_name: wikilite-windows-amd64.exe
-          asset_content_type: application/octet-stream
-
+          asset_path: wikilite-windows-amd64.zip
+          asset_name: wikilite-windows-amd64.zip
+          asset_content_type: application/zip
