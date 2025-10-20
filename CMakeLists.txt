@@ -20,6 +20,7 @@ set(GGML_METAL OFF CACHE BOOL "Disable Metal support" FORCE)
 set(GGML_CUDA OFF CACHE BOOL "Disable CUDA support" FORCE)
 
 # Prevent compiler from using optimizations for the current machine's architecture
+set(GGML_BACKEND_DL OFF CACHE BOOL "Disable backend DL" FORCE)
 set(GGML_NATIVE OFF CACHE BOOL "Disable native architecture optimizations" FORCE)
 set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "Disable all CPU variants for runtime dispatch" FORCE)
 
