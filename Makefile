@@ -8,6 +8,7 @@ ifeq ($(GOOS),darwin)
   LOCAL_EMBEDDINGS_SUPPORTED := true
 endif
 ifeq ($(GOOS),linux)
+  EXT_LDFLAGS := -static
   ifeq ($(GOARCH),amd64)
     LOCAL_EMBEDDINGS_SUPPORTED := true
   endif
@@ -16,17 +17,14 @@ ifeq ($(GOOS),linux)
   endif
 endif
 ifeq ($(GOOS),windows)
-  ifeq ($(GOARCH),amd64)
-    LOCAL_EMBEDDINGS_SUPPORTED := true
-  endif
+  TARGET := wikilite.exe
+  EXT_LDFLAGS := -static -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,-Bdynamic,--no-whole-archive
+  LOCAL_EMBEDDINGS_SUPPORTED := true
 endif
 
 .PHONY: all lint clean static
 
 all: wikilite
-
-static: EXT_LDFLAGS := -static
-static: wikilite
 
 lint:
 	@gofmt -w ./app
@@ -38,10 +36,6 @@ clean:
 
 TARGET := wikilite
 LIBRARY_PATH := build/bin/libembedding_wrapper.a
-
-ifeq ($(GOOS),windows)
-  TARGET := wikilite.exe
-endif
 
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
 wikilite: $(LIBRARY_PATH) $(shell find app -type f)
