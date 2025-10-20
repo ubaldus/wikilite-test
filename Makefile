@@ -1,6 +1,6 @@
-GOOS := $(shell go env GOOS)
+TARGET := wikilite
 GOARCH := $(shell go env GOARCH)
-
+GOOS := $(shell go env GOOS)
 EXT_LDFLAGS :=
 
 LOCAL_EMBEDDINGS_SUPPORTED := false
@@ -34,7 +34,6 @@ clean:
 	@rm -f wikilite wikilite.exe
 
 
-TARGET := wikilite
 LIBRARY_PATH := build/bin/libembedding_wrapper.a
 
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
