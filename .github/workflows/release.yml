@@ -183,9 +183,9 @@ jobs:
         shell: bash
         run: make
 
-      - name: Compress artifact
+      - name: Rename
         shell: bash
-        run: tar -czf wikilite-windows-amd64.tar.gz wikilite.exe
+        run: mv wikilite.exe wikilite-windows-amd64.exe
         
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -193,7 +193,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-windows-amd64.tar.gz
-          asset_name: wikilite-windows-amd64.tar.gz
-          asset_content_type: application/gzip
+          asset_path: wikilite-windows-amd64.exe
+          asset_name: wikilite-windows-amd64.exe
+          asset_content_type: application/octet-stream
 
