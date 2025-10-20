@@ -19,13 +19,6 @@ set(GGML_BLAS OFF CACHE BOOL "Disable BLAS support" FORCE)
 set(GGML_METAL OFF CACHE BOOL "Disable Metal support" FORCE)
 set(GGML_CUDA OFF CACHE BOOL "Disable CUDA support" FORCE)
 
-# Disable all CPU-specific hardware acceleration for maximum compatibility
-set(LLAMA_AVX OFF CACHE BOOL "Disable AVX" FORCE)
-set(LLAMA_AVX2 OFF CACHE BOOL "Disable AVX2" FORCE)
-set(LLAMA_AVX512 OFF CACHE BOOL "Disable AVX512" FORCE)
-set(LLAMA_FMA OFF CACHE BOOL "Disable FMA" FORCE)
-set(LLAMA_F16C OFF CACHE BOOL "Disable F16C" FORCE)
-
 # Prevent compiler from using optimizations for the current machine's architecture
 set(GGML_NATIVE OFF CACHE BOOL "Disable native architecture optimizations" FORCE)
 
