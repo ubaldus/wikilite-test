@@ -206,14 +206,13 @@ func Setup() {
 		fmt.Printf("%d. %s\n", i+1, key)
 	}
 
-	fmt.Print("Choose a file by number: ")
+	fmt.Print("Choose a file by number or enter to exit: ")
 	reader := bufio.NewReader(os.Stdin)
 	input, _ := reader.ReadString('\n')
 	var choice int
 	_, err = fmt.Sscanf(input, "%d", &choice)
 	if err != nil || choice < 1 || choice > len(groupKeys) {
-		fmt.Println("Invalid choice.")
-		return
+		os.Exit(0)
 	}
 
 	selectedGroup := fileGroups[groupKeys[choice-1]]
