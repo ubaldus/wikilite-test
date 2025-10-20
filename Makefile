@@ -1,7 +1,7 @@
 GOOS := $(shell go env GOOS)
 GOARCH := $(shell go env GOARCH)
 
-EXT_LDFLAGS := 
+EXT_LDFLAGS :=
 
 LOCAL_EMBEDDINGS_SUPPORTED := false
 ifeq ($(GOOS),darwin)
@@ -38,7 +38,6 @@ LIBRARY_PATH := build/bin/libembedding_wrapper.a
 
 ifeq ($(GOOS),windows)
   TARGET := wikilite.exe
-  LIBRARY_PATH := build/bin/embedding_wrapper.a
 endif
 
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
@@ -51,7 +50,12 @@ wikilite: $(shell find app -type f)
 	go build -v -tags "fts5" -ldflags="-s -w -extldflags '$(EXT_LDFLAGS)'" -o $(TARGET) ./app
 endif
 
+CMAKE_GENERATOR :=
+ifeq ($(GOOS),windows)
+  CMAKE_GENERATOR := -G "MinGW Makefiles"
+endif
+
 $(LIBRARY_PATH): CMakeLists.txt $(shell find src -type f)
 	@mkdir -p build
-	@cd build && cmake ..
+	@cd build && cmake .. $(CMAKE_GENERATOR)
 	@cmake --build build -j
