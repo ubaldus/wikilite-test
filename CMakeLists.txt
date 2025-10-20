@@ -21,6 +21,7 @@ set(GGML_CUDA OFF CACHE BOOL "Disable CUDA support" FORCE)
 
 # Prevent compiler from using optimizations for the current machine's architecture
 set(GGML_NATIVE OFF CACHE BOOL "Disable native architecture optimizations" FORCE)
+set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "Disable all CPU variants for runtime dispatch" FORCE)
 
 # Disable other optional features
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "Disable llama tests" FORCE)
