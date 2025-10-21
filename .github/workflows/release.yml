@@ -192,6 +192,9 @@ jobs:
           mkdir release
           copy wikilite.exe release\
           copy build\bin\*.dll release\
+          copy C:\mingw64\bin\libwinpthread-1.dll release\
+          copy C:\mingw64\bin\libstdc++-6.dll release\
+          copy C:\mingw64\bin\libgcc_s_seh-1.dll release\
           Compress-Archive -Path release\* -DestinationPath wikilite-windows-amd64.zip
 
       - name: Upload release asset
