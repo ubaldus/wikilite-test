@@ -11,7 +11,7 @@ import (
 	"runtime"
 )
 
-const Version = "0.19"
+const Version = "0.20"
 
 type Config struct {
 	aiApiKey            string
