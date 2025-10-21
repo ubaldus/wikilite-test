@@ -25,6 +25,10 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
         return 0;
     }
 
+    #if defined(_WIN32)
+        ggml_backend_load_all();
+    #endif
+
     common_params temp_params = {};
     temp_params.model.path = model_path;
     temp_params.embedding = true;
