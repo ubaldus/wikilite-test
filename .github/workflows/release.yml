@@ -187,17 +187,19 @@ jobs:
         shell: bash
         run: make
 
-      - name: Rename
-        shell: bash
-        run: find build/bin && mv wikilite.exe wikilite-windows-amd64.exe
-        
+      - name: Package artifacts into a Zip file
+        run: |
+          mkdir release
+          copy wikilite.exe release\
+          copy build\bin\*.dll release\
+          Compress-Archive -Path release\* -DestinationPath wikilite-windows-amd64.zip
+
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-windows-amd64.exe
-          asset_name: wikilite-windows-amd64.exe
-          asset_content_type: application/octet-stream
-
+          asset_path: wikilite-windows-amd64.zip
+          asset_name: wikilite-windows-amd64.zip
+          asset_content_type: application/zip
