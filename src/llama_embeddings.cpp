@@ -19,7 +19,7 @@ void silent_log_callback(ggml_log_level level, const char * text, void * user_da
 }
 
 int llama_embeddings_init(const char* model_path, int n_threads) {
-    //llama_log_set(silent_log_callback, NULL);
+    llama_log_set(silent_log_callback, NULL);
 
     if (g_initialized) {
         return 0;
