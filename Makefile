@@ -1,6 +1,6 @@
-GOOS := $(shell go env GOOS)
+TARGET := wikilite
 GOARCH := $(shell go env GOARCH)
-
+GOOS := $(shell go env GOOS)
 EXT_LDFLAGS :=
 
 LOCAL_EMBEDDINGS_SUPPORTED := false
@@ -8,6 +8,7 @@ ifeq ($(GOOS),darwin)
   LOCAL_EMBEDDINGS_SUPPORTED := true
 endif
 ifeq ($(GOOS),linux)
+  EXT_LDFLAGS := -static
   ifeq ($(GOARCH),amd64)
     LOCAL_EMBEDDINGS_SUPPORTED := true
   endif
@@ -16,17 +17,13 @@ ifeq ($(GOOS),linux)
   endif
 endif
 ifeq ($(GOOS),windows)
-  ifeq ($(GOARCH),amd64)
-    LOCAL_EMBEDDINGS_SUPPORTED := true
-  endif
+  TARGET := wikilite.exe
+  LOCAL_EMBEDDINGS_SUPPORTED := true
 endif
 
 .PHONY: all lint clean static
 
 all: wikilite
-
-static: EXT_LDFLAGS := -static
-static: wikilite
 
 lint:
 	@gofmt -w ./app
@@ -36,12 +33,7 @@ clean:
 	@rm -f wikilite wikilite.exe
 
 
-TARGET := wikilite
 LIBRARY_PATH := build/bin/libembedding_wrapper.a
-
-ifeq ($(GOOS),windows)
-  TARGET := wikilite.exe
-endif
 
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
 wikilite: $(LIBRARY_PATH) $(shell find app -type f)

@@ -80,7 +80,7 @@ jobs:
           go-version: '1.24'
           
       - name: Build wikilite for Linux AMD64
-        run: make static
+        run: make
 
       - name: Compress artifact
         run: tar -czvf wikilite-linux-amd64.tar.gz wikilite
@@ -110,7 +110,7 @@ jobs:
           go-version: '1.24'
 
       - name: Build wikilite for Linux ARM64
-        run: make static
+        run: make
 
       - name: Compress artifact
         run: tar -czvf wikilite-linux-arm64.tar.gz wikilite
@@ -150,7 +150,7 @@ jobs:
           GOOS=linux \
           GOARCH=arm \
           GOARM=7 \
-          make static
+          make
           
       - name: Compress artifact
         run: tar -czvf wikilite-linux-arm32.tar.gz wikilite
@@ -187,9 +187,15 @@ jobs:
         shell: bash
         run: make
 
-      - name: Rename
-        shell: bash
-        run: mv wikilite.exe wikilite-windows-amd64.exe
+      - name: Package artifacts into a Zip file
+        run: |
+          mkdir release
+          copy wikilite.exe release\
+          copy build\bin\*.dll release\
+          copy C:\mingw64\bin\libwinpthread-1.dll release\
+          copy C:\mingw64\bin\libstdc++-6.dll release\
+          copy C:\mingw64\bin\libgcc_s_seh-1.dll release\
+          Compress-Archive -Path release\* -DestinationPath wikilite-windows-amd64.zip
         
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -197,7 +203,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-windows-amd64.exe
-          asset_name: wikilite-windows-amd64.exe
-          asset_content_type: application/octet-stream
-
+          asset_path: wikilite-windows-amd64.zip
+          asset_name: wikilite-windows-amd64.zip
+          asset_content_type: application/zip
