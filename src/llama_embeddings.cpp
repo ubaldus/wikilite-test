@@ -38,6 +38,7 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
     temp_params.n_ctx = 512;
     temp_params.n_batch = 512;
     temp_params.n_gpu_layers = 0;
+    temp_params.use_mmap = false;
 
     common_init_result llama_init = common_init_from_params(temp_params);
     llama_model* temp_model = llama_init.model.release();
@@ -65,7 +66,8 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
     
     final_params.n_batch = model_ctx_size;
 
-    final_params.n_gpu_layers = 999;
+    final_params.n_gpu_layers = 0;
+    final_params.use_mmap = false;
 
     llama_model_free(temp_model);
 
