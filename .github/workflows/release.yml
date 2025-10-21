@@ -189,7 +189,7 @@ jobs:
 
       - name: Rename
         shell: bash
-        run: mv wikilite.exe wikilite-windows-amd64.exe
+        run: find build/bin && mv wikilite.exe wikilite-windows-amd64.exe
         
       - name: Upload release asset
         uses: actions/upload-release-asset@v1

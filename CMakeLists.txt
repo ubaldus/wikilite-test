@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 project(wikilite C CXX)
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -18,17 +16,23 @@ set(LLAMA_VULKAN OFF CACHE BOOL "Disable Vulkan support" FORCE)
 set(GGML_BLAS OFF CACHE BOOL "Disable BLAS support" FORCE)
 set(GGML_METAL OFF CACHE BOOL "Disable Metal support" FORCE)
 set(GGML_CUDA OFF CACHE BOOL "Disable CUDA support" FORCE)
-
-# Prevent compiler from using optimizations for the current machine's architecture
-set(GGML_BACKEND_DL OFF CACHE BOOL "Disable backend DL" FORCE)
 set(GGML_NATIVE OFF CACHE BOOL "Disable native architecture optimizations" FORCE)
-set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "Disable all CPU variants for runtime dispatch" FORCE)
 
-# Disable other optional features
+# Disable other optional features (common to all platforms)
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "Disable llama tests" FORCE)
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "Disable llama examples" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "Disable curl support" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "Disable OpenMP support" FORCE)
+
+if(WIN32)
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+    set(GGML_BACKEND_DL ON CACHE BOOL "Enable backend DL" FORCE)
+    set(GGML_CPU_ALL_VARIANTS ON CACHE BOOL "Enable all CPU variants for runtime dispatch" FORCE)
+else()
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+    set(GGML_BACKEND_DL OFF CACHE BOOL "Disable backend DL" FORCE)
+    set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "Disable all CPU variants for runtime dispatch" FORCE)
+endif()
 
 add_subdirectory(llama.cpp)
 

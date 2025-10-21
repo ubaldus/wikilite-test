@@ -18,7 +18,7 @@ ifeq ($(GOOS),linux)
 endif
 ifeq ($(GOOS),windows)
   TARGET := wikilite.exe
-  EXT_LDFLAGS := -static -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,-Bdynamic,--no-whole-archive
+#  EXT_LDFLAGS := -static -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,-Bdynamic,--no-whole-archive
   LOCAL_EMBEDDINGS_SUPPORTED := true
 endif
 
