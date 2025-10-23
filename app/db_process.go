@@ -124,15 +124,6 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 			break
 		}
 
-		var ann_chunk_data []byte
-		var ann_chunk_position int
-		var ann_chunk_rowid int
-		if err := tx.QueryRow("SELECT id FROM vectors_ann_chunks ORDER BY id DESC LIMIT 1").Scan(&ann_chunk_rowid); err != nil && err != sql.ErrNoRows {
-			tx.Rollback()
-			return err
-		}
-		ann_chunk_rowid++
-
 		for i, sectionID := range sectionIDs {
 			var sectionContent string
 			err := tx.QueryRow("SELECT content FROM sections WHERE id = ?", sectionID).Scan(&sectionContent)
@@ -156,17 +147,6 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 				problematicIDs = append(problematicIDs, sectionID)
 				continue
 			}
-			if _, err := tx.Exec("INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)", sectionID, ann_chunk_rowid, ann_chunk_position); err != nil {
-				log.Printf("Error inserting vectors_ann for section %d: %v", sectionID, err)
-				problematicIDs = append(problematicIDs, sectionID)
-				continue
-			}
-			ann_chunk_data = append(ann_chunk_data, QuantizeBinary(embedding)...)
-			ann_chunk_position++
-		}
-		if _, err := tx.Exec("INSERT INTO vectors_ann_chunks (id, chunk) VALUES (?, ?)", ann_chunk_rowid, ann_chunk_data); err != nil {
-			tx.Rollback()
-			return err
 		}
 
 		if err := tx.Commit(); err != nil {
@@ -182,6 +162,128 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		log.Printf("Embedding progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
 
 		offset += len(sectionIDs)
+	}
+
+	return h.ProcessANN()
+}
+
+func (h *DBHandler) ProcessANN() error {
+	batchSize := 250
+	offset := 0
+	method := ""
+	size := 0
+	if options.aiAnnMode == "matrioshka" || options.aiAnnMode == "binary" {
+		method = options.aiAnnMode
+		size = options.aiAnnSize
+		if err := db.SetupPut("annMode", method); err != nil {
+			return err
+		}
+		if err := db.SetupPut("annSize", fmt.Sprintf("%d", size)); err != nil {
+			return err
+		}
+	}
+
+	if method == "" {
+		return fmt.Errorf("invalid quantization method")
+	}
+	if size == 0 {
+		return fmt.Errorf("invalid quantization size")
+	}
+
+	totalCount := 0
+	err := h.db.QueryRow("SELECT COUNT(*) FROM vectors WHERE id NOT IN (SELECT vectors_id FROM vectors_ann_index)").Scan(&totalCount)
+	if err != nil {
+		return fmt.Errorf("error getting total count of vectors for ANN processing: %w", err)
+	}
+
+	log.Printf("Pending ANN processing: %d", totalCount)
+
+	startTime := time.Now()
+
+	for {
+		tx, err := h.db.Begin()
+		if err != nil {
+			return fmt.Errorf("error starting transaction: %w", err)
+		}
+
+		rows, err := tx.Query("SELECT id, embedding FROM vectors WHERE id NOT IN (SELECT vectors_id FROM vectors_ann_index) LIMIT ?", batchSize)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("error querying vectors: %w", err)
+		}
+
+		var vectorIDs []int
+		var embeddings [][]byte
+
+		for rows.Next() {
+			var vectorID int
+			var embedding []byte
+			if err := rows.Scan(&vectorID, &embedding); err != nil {
+				rows.Close()
+				tx.Rollback()
+				return fmt.Errorf("error scanning vector row: %w", err)
+			}
+			vectorIDs = append(vectorIDs, vectorID)
+			embeddings = append(embeddings, embedding)
+		}
+		rows.Close()
+
+		if err := rows.Err(); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("error iterating vector rows: %w", err)
+		}
+
+		if len(vectorIDs) == 0 {
+			tx.Commit()
+			break
+		}
+
+		var ann_chunk_data []byte
+		var ann_chunk_position int
+		var ann_chunk_rowid int
+		if err := tx.QueryRow("SELECT id FROM vectors_ann_chunks ORDER BY id DESC LIMIT 1").Scan(&ann_chunk_rowid); err != nil && err != sql.ErrNoRows {
+			tx.Rollback()
+			return err
+		}
+		ann_chunk_rowid++
+
+		for i, vectorID := range vectorIDs {
+			embedding := BytesToFloat32(embeddings[i])
+
+			var annData []byte
+			if method == "matrioshka" {
+				annData = ExtractMRL(embedding, size)
+			}
+			if method == "binary" {
+				annData = QuantizeBinary(embedding)
+			}
+
+			if _, err := tx.Exec("INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)", vectorID, ann_chunk_rowid, ann_chunk_position); err != nil {
+				log.Printf("Error inserting vectors_ann for vector %d: %v", vectorID, err)
+				continue
+			}
+			ann_chunk_data = append(ann_chunk_data, annData...)
+			ann_chunk_position++
+		}
+
+		if _, err := tx.Exec("INSERT INTO vectors_ann_chunks (id, chunk) VALUES (?, ?)", ann_chunk_rowid, ann_chunk_data); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("error committing transaction: %w", err)
+		}
+
+		processedCount := offset + len(vectorIDs)
+		progress := float64(processedCount) / float64(totalCount) * 100
+		elapsed := time.Since(startTime)
+		estimatedTotalTime := time.Duration(float64(elapsed) / (progress / 100.0))
+		remainingTime := estimatedTotalTime - elapsed
+
+		log.Printf("ANN progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
+
+		offset += len(vectorIDs)
 	}
 
 	return nil

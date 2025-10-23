@@ -142,3 +142,18 @@ func Float32ToBytes(values []float32) []byte {
 
 	return bytes
 }
+
+func ExtractMRL(embedding []float32, size int) []byte {
+	if size <= 0 || size > len(embedding) {
+		size = len(embedding)
+	}
+
+	result := make([]byte, size*4)
+
+	for i := 0; i < size; i++ {
+		bits := math.Float32bits(embedding[i])
+		binary.LittleEndian.PutUint32(result[i*4:(i+1)*4], bits)
+	}
+
+	return result
+}

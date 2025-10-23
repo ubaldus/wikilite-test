@@ -23,7 +23,7 @@ endif
 
 .PHONY: all lint clean static
 
-all: wikilite
+all: lint wikilite
 
 lint:
 	@gofmt -w ./app

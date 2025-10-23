@@ -109,6 +109,14 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 		}
 	}
 
+	if annMode, err := handler.SetupGet("annMode"); err == nil && annMode != "" {
+		options.aiAnnMode = annMode
+	}
+
+	if annSize, err := handler.SetupGet("annSize"); err == nil && annSize != "" {
+		options.aiAnnSize = extractNumberFromString(annSize)
+	}
+
 	if modelPrefixSearch, err := handler.SetupGet("modelPrefixSearch"); err == nil && modelPrefixSearch != "" {
 		options.aiModelPrefixSearch = modelPrefixSearch
 	}

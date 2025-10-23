@@ -11,9 +11,11 @@ import (
 	"runtime"
 )
 
-const Version = "0.20"
+const Version = "0.21"
 
 type Config struct {
+	aiAnnMode           string
+	aiAnnSize           int
 	aiApiKey            string
 	aiApiUrl            string
 	aiModel             string
@@ -45,6 +47,8 @@ var (
 
 func parseConfig() (*Config, error) {
 	options = &Config{}
+	flag.StringVar(&options.aiAnnMode, "ai-ann-mode", "matrioshka", "Approximate Nearest Neighbor mode [matrioshka/binary]")
+	flag.IntVar(&options.aiAnnSize, "ai-ann-size", 32, "ANN Matrioshka size")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
 	flag.StringVar(&options.aiApiUrl, "ai-api-url", "http://localhost:11434/v1/embeddings", "AI API base url")
 	flag.StringVar(&options.aiModel, "ai-model", "", "AI embedding model")
