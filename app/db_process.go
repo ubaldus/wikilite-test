@@ -3,10 +3,10 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -45,9 +45,6 @@ func (h *DBHandler) ProcessVocabulary() error {
 
 func (h *DBHandler) ProcessEmbeddings() (err error) {
 	batchSize := 250
-	totalCount := 0
-	offset := 0
-
 	aiModelBasename := filepath.Base(options.aiModel)
 	aiModelName := strings.TrimSuffix(aiModelBasename, ".gguf")
 	if err = db.SetupPut("model", aiModelName); err != nil {
@@ -62,48 +59,85 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		return
 	}
 
-	err = h.db.QueryRow("SELECT COUNT(*) FROM sections WHERE id NOT IN (SELECT id FROM vectors)").Scan(&totalCount)
+	log.Printf("Loading pending vector IDs for Embeddings processing...")
+	rows, err := h.db.Query(`
+		SELECT s.id 
+		FROM sections s 
+		WHERE s.id NOT IN (SELECT id FROM vectors)
+		ORDER BY s.id`)
 	if err != nil {
-		return fmt.Errorf("error getting total count of sections: %w", err)
+		return fmt.Errorf("error loading pending section IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var pendingSectionIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("error scanning section ID: %w", err)
+		}
+		pendingSectionIDs = append(pendingSectionIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating section IDs: %w", err)
 	}
 
+	totalCount := len(pendingSectionIDs)
 	log.Printf("Pending section embeddings: %d", totalCount)
 
+	if totalCount == 0 {
+		log.Printf("No sections to process for embeddings")
+		return h.ProcessANN()
+	}
+
 	startTime := time.Now()
+	processed := 0
 	var problematicIDs []int
-	for {
+
+	for processed < totalCount {
+		end := processed + batchSize
+		if end > totalCount {
+			end = totalCount
+		}
+
+		batchIDs := pendingSectionIDs[processed:end]
+		if len(batchIDs) == 0 {
+			break
+		}
+
 		tx, err := h.db.Begin()
 		if err != nil {
 			return fmt.Errorf("error starting transaction: %w", err)
 		}
 
-		query := `SELECT s.id, s.title, a.title 
-          FROM sections s 
-          JOIN articles a ON s.article_id = a.id 
-          WHERE s.id NOT IN (SELECT id FROM vectors)`
-		if len(problematicIDs) > 0 {
-			idList := make([]string, 0, len(problematicIDs))
-			for _, id := range problematicIDs {
-				idList = append(idList, fmt.Sprintf("%d", id))
-			}
-			query += " AND s.id NOT IN (" + strings.Join(idList, ", ") + ")"
+		placeholders := make([]string, len(batchIDs))
+		args := make([]interface{}, len(batchIDs))
+		for i, id := range batchIDs {
+			placeholders[i] = "?"
+			args[i] = id
 		}
-		query += " LIMIT ?"
 
-		rows, err := tx.Query(query, batchSize)
+		query := fmt.Sprintf(`
+			SELECT s.id, s.title, a.title, s.content 
+			FROM sections s 
+			JOIN articles a ON s.article_id = a.id 
+			WHERE s.id IN (%s)`, strings.Join(placeholders, ","))
+
+		rows, err := tx.Query(query, args...)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("error querying sections: %w", err)
+			return fmt.Errorf("error querying sections batch: %w", err)
 		}
 
 		var sectionIDs []int
 		var sectionTitles []string
 		var articleTitles []string
+		var sectionContents []string
 
 		for rows.Next() {
 			var sectionID int
-			var sectionTitle, articleTitle string
-			if err := rows.Scan(&sectionID, &sectionTitle, &articleTitle); err != nil {
+			var sectionTitle, articleTitle, sectionContent string
+			if err := rows.Scan(&sectionID, &sectionTitle, &articleTitle, &sectionContent); err != nil {
 				rows.Close()
 				tx.Rollback()
 				return fmt.Errorf("error scanning section row: %w", err)
@@ -111,6 +145,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 			sectionIDs = append(sectionIDs, sectionID)
 			sectionTitles = append(sectionTitles, sectionTitle)
 			articleTitles = append(articleTitles, articleTitle)
+			sectionContents = append(sectionContents, sectionContent)
 		}
 		rows.Close()
 
@@ -119,21 +154,8 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 			return fmt.Errorf("error iterating section rows: %w", err)
 		}
 
-		if len(sectionIDs) == 0 {
-			tx.Commit()
-			break
-		}
-
 		for i, sectionID := range sectionIDs {
-			var sectionContent string
-			err := tx.QueryRow("SELECT content FROM sections WHERE id = ?", sectionID).Scan(&sectionContent)
-			if err != nil {
-				log.Printf("Error getting content for section %d: %v", sectionID, err)
-				problematicIDs = append(problematicIDs, sectionID)
-				continue
-			}
-
-			fullSectionText := articleTitles[i] + " - " + sectionTitles[i] + "\n\n" + sectionContent
+			fullSectionText := articleTitles[i] + " - " + sectionTitles[i] + "\n\n" + sectionContents[i]
 
 			embedding, err := aiEmbeddings(options.aiModelPrefixSave + fullSectionText)
 			if err != nil {
@@ -153,15 +175,20 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 			return fmt.Errorf("error committing transaction: %w", err)
 		}
 
-		processedCount := offset + len(sectionIDs)
-		progress := float64(processedCount) / float64(totalCount) * 100
+		processed += len(batchIDs)
+		progress := float64(processed) / float64(totalCount) * 100
 		elapsed := time.Since(startTime)
-		estimatedTotalTime := time.Duration(float64(elapsed) / (progress / 100.0))
-		remainingTime := estimatedTotalTime - elapsed
 
-		log.Printf("Embedding progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
+		if progress > 0 {
+			estimatedTotalTime := time.Duration(float64(elapsed) / (progress / 100.0))
+			remainingTime := estimatedTotalTime - elapsed
+			log.Printf("Embedding progress: %.2f%%, Processed: %d/%d, Remaining: %s",
+				progress, processed, totalCount, remainingTime.Truncate(time.Second))
+		}
+	}
 
-		offset += len(sectionIDs)
+	if len(problematicIDs) > 0 {
+		log.Printf("Embedding process completed with %d problematic sections that need manual review", len(problematicIDs))
 	}
 
 	return h.ProcessANN()
@@ -169,7 +196,6 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 
 func (h *DBHandler) ProcessANN() error {
 	batchSize := 250
-	offset := 0
 	method := ""
 	size := 0
 	if options.aiAnnMode == "matrioshka" || options.aiAnnMode == "binary" {
@@ -190,26 +216,71 @@ func (h *DBHandler) ProcessANN() error {
 		return fmt.Errorf("invalid quantization size")
 	}
 
-	totalCount := 0
-	err := h.db.QueryRow("SELECT COUNT(*) FROM vectors WHERE id NOT IN (SELECT vectors_id FROM vectors_ann_index)").Scan(&totalCount)
+	log.Printf("Loading pending vector IDs for ANN processing using mode %s...", method)
+
+	rows, err := h.db.Query(`
+        SELECT v.id 
+        FROM vectors v 
+        WHERE v.id NOT IN (SELECT vectors_id FROM vectors_ann_index)
+        ORDER BY v.id`)
 	if err != nil {
-		return fmt.Errorf("error getting total count of vectors for ANN processing: %w", err)
+		return fmt.Errorf("error loading pending vector IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var pendingVectorIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("error scanning vector ID: %w", err)
+		}
+		pendingVectorIDs = append(pendingVectorIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating vector IDs: %w", err)
 	}
 
+	totalCount := len(pendingVectorIDs)
 	log.Printf("Pending ANN processing: %d", totalCount)
 
-	startTime := time.Now()
+	if totalCount == 0 {
+		log.Printf("No vectors to process")
+		return nil
+	}
 
-	for {
+	sort.Ints(pendingVectorIDs)
+
+	startTime := time.Now()
+	processed := 0
+
+	for processed < totalCount {
+		end := processed + batchSize
+		if end > totalCount {
+			end = totalCount
+		}
+
+		batchIDs := pendingVectorIDs[processed:end]
+		if len(batchIDs) == 0 {
+			break
+		}
+
 		tx, err := h.db.Begin()
 		if err != nil {
 			return fmt.Errorf("error starting transaction: %w", err)
 		}
 
-		rows, err := tx.Query("SELECT id, embedding FROM vectors WHERE id NOT IN (SELECT vectors_id FROM vectors_ann_index) LIMIT ?", batchSize)
+		placeholders := make([]string, len(batchIDs))
+		args := make([]interface{}, len(batchIDs))
+		for i, id := range batchIDs {
+			placeholders[i] = "?"
+			args[i] = id
+		}
+
+		query := fmt.Sprintf("SELECT id, embedding FROM vectors WHERE id IN (%s)", strings.Join(placeholders, ","))
+		rows, err := tx.Query(query, args...)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("error querying vectors: %w", err)
+			return fmt.Errorf("error querying vectors batch: %w", err)
 		}
 
 		var vectorIDs []int
@@ -233,58 +304,56 @@ func (h *DBHandler) ProcessANN() error {
 			return fmt.Errorf("error iterating vector rows: %w", err)
 		}
 
-		if len(vectorIDs) == 0 {
-			tx.Commit()
-			break
-		}
-
-		var ann_chunk_data []byte
-		var ann_chunk_position int
-		var ann_chunk_rowid int
-		if err := tx.QueryRow("SELECT id FROM vectors_ann_chunks ORDER BY id DESC LIMIT 1").Scan(&ann_chunk_rowid); err != nil && err != sql.ErrNoRows {
+		var annChunkID int
+		if err := tx.QueryRow("SELECT COALESCE(MAX(id), 0) + 1 FROM vectors_ann_chunks").Scan(&annChunkID); err != nil {
 			tx.Rollback()
-			return err
+			return fmt.Errorf("error getting next chunk ID: %w", err)
 		}
-		ann_chunk_rowid++
 
+		var annChunkData []byte
 		for i, vectorID := range vectorIDs {
 			embedding := BytesToFloat32(embeddings[i])
 
 			var annData []byte
 			if method == "matrioshka" {
 				annData = ExtractMRL(embedding, size)
-			}
-			if method == "binary" {
+			} else if method == "binary" {
 				annData = QuantizeBinary(embedding)
 			}
 
-			if _, err := tx.Exec("INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)", vectorID, ann_chunk_rowid, ann_chunk_position); err != nil {
-				log.Printf("Error inserting vectors_ann for vector %d: %v", vectorID, err)
-				continue
+			if _, err := tx.Exec(
+				"INSERT INTO vectors_ann_index (vectors_id, chunk_id, chunk_position) VALUES (?, ?, ?)",
+				vectorID, annChunkID, i); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("error inserting ANN index for vector %d: %w", vectorID, err)
 			}
-			ann_chunk_data = append(ann_chunk_data, annData...)
-			ann_chunk_position++
+
+			annChunkData = append(annChunkData, annData...)
 		}
 
-		if _, err := tx.Exec("INSERT INTO vectors_ann_chunks (id, chunk) VALUES (?, ?)", ann_chunk_rowid, ann_chunk_data); err != nil {
+		if _, err := tx.Exec(
+			"INSERT INTO vectors_ann_chunks (id, chunk) VALUES (?, ?)",
+			annChunkID, annChunkData); err != nil {
 			tx.Rollback()
-			return err
+			return fmt.Errorf("error inserting ANN chunk: %w", err)
 		}
 
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("error committing transaction: %w", err)
 		}
 
-		processedCount := offset + len(vectorIDs)
-		progress := float64(processedCount) / float64(totalCount) * 100
+		processed += len(batchIDs)
+		progress := float64(processed) / float64(totalCount) * 100
 		elapsed := time.Since(startTime)
-		estimatedTotalTime := time.Duration(float64(elapsed) / (progress / 100.0))
-		remainingTime := estimatedTotalTime - elapsed
 
-		log.Printf("ANN progress: %.2f%%, Estimated total time: %s, Remaining: %s", progress, estimatedTotalTime.Truncate(time.Second), remainingTime.Truncate(time.Second))
-
-		offset += len(vectorIDs)
+		if progress > 0 {
+			estimatedTotal := time.Duration(float64(elapsed) / (progress / 100.0))
+			remaining := estimatedTotal - elapsed
+			log.Printf("ANN progress: %.2f%%, Processed: %d/%d, Remaining: %s",
+				progress, processed, totalCount, remaining.Truncate(time.Second))
+		}
 	}
 
+	log.Printf("ANN processing completed in %s", time.Since(startTime))
 	return nil
 }
