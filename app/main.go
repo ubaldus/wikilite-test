@@ -15,6 +15,7 @@ const Version = "0.21"
 
 type Config struct {
 	aiAnnMode           string
+	aiAnnOff            bool
 	aiAnnSize           int
 	aiApiKey            string
 	aiApiUrl            string
@@ -48,6 +49,7 @@ var (
 func parseConfig() (*Config, error) {
 	options = &Config{}
 	flag.StringVar(&options.aiAnnMode, "ai-ann-mode", "matrioshka", "Approximate Nearest Neighbor mode [matrioshka/binary]")
+	flag.BoolVar(&options.aiAnnOff, "ai-ann-off", false, "Disable ANN search mode")
 	flag.IntVar(&options.aiAnnSize, "ai-ann-size", 32, "ANN Matrioshka size")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
 	flag.StringVar(&options.aiApiUrl, "ai-api-url", "http://localhost:11434/v1/embeddings", "AI API base url")

@@ -5,10 +5,14 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"sort"
+	"strconv"
+	"time"
 )
 
 func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, error) {
+	start := time.Now()
 	sqlQuery := `
 		SELECT rowid, title, bm25(article_search) AS power
 		FROM article_search
@@ -43,10 +47,13 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 		results = append(results, result)
 	}
 
+	log.Printf("Search title: %s (%v)", searchQuery, time.Since(start))
+
 	return results, nil
 }
 
 func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult, error) {
+	start := time.Now()
 	sqlQuery := `
 		SELECT
 			s.article_id,
@@ -76,10 +83,13 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 		results = append(results, result)
 	}
 
+	log.Printf("Search content: %s (%v)", searchQuery, time.Since(start))
+
 	return results, nil
 }
 
 func (h *DBHandler) SearchWordDistance(inputWord string, limit int) ([]SearchResult, error) {
+	start := time.Now()
 	var allMatches []SearchResult
 	seen := make(map[string]bool)
 
@@ -129,31 +139,19 @@ func (h *DBHandler) SearchWordDistance(inputWord string, limit int) ([]SearchRes
 		return allMatches[i].Power < allMatches[j].Power
 	})
 
+	log.Printf("Search word distance: %s (%v)", inputWord, time.Since(start))
+
 	return allMatches, nil
 }
 
 func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, error) {
-	annLimit := limit * limit
+	start := time.Now()
 	queryEmbedding, err := aiEmbeddings(options.aiModelPrefixSearch + query)
 	if err != nil {
 		return nil, err
 	}
 
-	var chunkSize int
-	if options.aiAnnMode == "matrioshka" {
-		chunkSize = options.aiAnnSize * 4
-	} else if options.aiAnnMode == "binary" {
-		chunkSize = (len(queryEmbedding) + 7) / 8
-	} else {
-		return nil, fmt.Errorf("invalid ANN mode")
-	}
-
-	rows, err := h.db.Query("SELECT id, chunk FROM vectors_ann_chunks")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
+	sqlQuery := "SELECT id, embedding FROM vectors"
 	type VectorDistance struct {
 		ID            int64
 		ChunkRowID    int64
@@ -161,87 +159,111 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		Distance      float32
 	}
 
-	topANNResults := make([]VectorDistance, 0, annLimit)
-
-	for rows.Next() {
-		var chunkRowID int64
-		var chunkBlob []byte
-		if err := rows.Scan(&chunkRowID, &chunkBlob); err != nil {
-			return nil, err
+	if !options.aiAnnOff {
+		chunkSize := 0
+		annLimit := limit * limit
+		if options.aiAnnMode == "matrioshka" {
+			chunkSize = options.aiAnnSize * 4
+		} else if options.aiAnnMode == "binary" {
+			chunkSize = (len(queryEmbedding) + 7) / 8
+		} else {
+			return nil, fmt.Errorf("invalid ANN mode")
 		}
 
-		for position := 0; position < len(chunkBlob); position += chunkSize {
-			var result VectorDistance
-			embeddingBlob := chunkBlob[position:(position + chunkSize)]
+		rows, err := h.db.Query("SELECT id, chunk FROM vectors_ann_chunks")
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
 
-			var distance float32
-			var err error
+		topANNResults := make([]VectorDistance, 0, annLimit)
 
-			if options.aiAnnMode == "matrioshka" {
-				mrlQuery := queryEmbedding
-				if len(mrlQuery) > options.aiAnnSize {
-					mrlQuery = mrlQuery[:options.aiAnnSize]
-				}
-
-				storedMRL := BytesToFloat32(embeddingBlob)
-				distance, err = EuclideanDistance(mrlQuery, storedMRL)
-			}
-
-			if options.aiAnnMode == "binary" {
-				quantizedQuery := QuantizeBinary(queryEmbedding)
-				distance, err = HammingDistance(quantizedQuery, embeddingBlob)
-			}
-
-			if err != nil {
+		for rows.Next() {
+			var chunkRowID int64
+			var chunkBlob []byte
+			if err := rows.Scan(&chunkRowID, &chunkBlob); err != nil {
 				return nil, err
 			}
 
-			result.ChunkRowID = chunkRowID
-			result.ChunkPosition = position / chunkSize
-			result.Distance = distance
+			for position := 0; position < len(chunkBlob); position += chunkSize {
+				var result VectorDistance
+				embeddingBlob := chunkBlob[position:(position + chunkSize)]
 
-			if len(topANNResults) < annLimit {
-				topANNResults = append(topANNResults, result)
-			} else {
-				maxIndex := -1
-				maxDistance := float32(-1)
-				for i := range topANNResults {
-					if topANNResults[i].Distance > maxDistance {
-						maxDistance = topANNResults[i].Distance
-						maxIndex = i
+				var distance float32
+				var err error
+
+				if options.aiAnnMode == "matrioshka" {
+					mrlQuery := queryEmbedding
+					if len(mrlQuery) > options.aiAnnSize {
+						mrlQuery = mrlQuery[:options.aiAnnSize]
 					}
+
+					storedMRL := BytesToFloat32(embeddingBlob)
+					distance, err = EuclideanDistance(mrlQuery, storedMRL)
 				}
-				if maxIndex >= 0 && distance < maxDistance {
-					topANNResults[maxIndex] = result
+
+				if options.aiAnnMode == "binary" {
+					quantizedQuery := QuantizeBinary(queryEmbedding)
+					distance, err = HammingDistance(quantizedQuery, embeddingBlob)
+				}
+
+				if err != nil {
+					return nil, err
+				}
+
+				result.ChunkRowID = chunkRowID
+				result.ChunkPosition = position / chunkSize
+				result.Distance = distance
+
+				if len(topANNResults) <= annLimit {
+					topANNResults = append(topANNResults, result)
+				} else {
+					maxIndex := -1
+					maxDistance := float32(-1)
+					for i := range topANNResults {
+						if topANNResults[i].Distance > maxDistance {
+							maxDistance = topANNResults[i].Distance
+							maxIndex = i
+						}
+					}
+					if maxIndex >= 0 && distance < maxDistance {
+						topANNResults[maxIndex] = result
+					}
 				}
 			}
 		}
-	}
 
-	for k, v := range topANNResults {
-		var vectors_id int64
-		if err := h.db.QueryRow("SELECT vectors_id FROM vectors_ann_index WHERE chunk_id = ? AND chunk_position = ? LIMIT 1", v.ChunkRowID, v.ChunkPosition).Scan(&vectors_id); err != nil {
-			return nil, err
+		sqlQuery += " WHERE id IN (0"
+		for _, v := range topANNResults {
+			var vectors_id int64
+			if err := h.db.QueryRow("SELECT vectors_id FROM vectors_ann_index WHERE chunk_id = ? AND chunk_position = ? LIMIT 1", v.ChunkRowID, v.ChunkPosition).Scan(&vectors_id); err != nil {
+				return nil, err
+			}
+			sqlQuery += "," + strconv.FormatInt(vectors_id, 10)
 		}
-		topANNResults[k].ID = vectors_id
+		sqlQuery += ")"
 	}
 
 	topResults := make([]VectorDistance, 0, limit)
-	for _, annResult := range topANNResults {
+	rows, err := h.db.Query(sqlQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
 		var embeddingBlob []byte
-		err := h.db.QueryRow("SELECT embedding FROM vectors WHERE id = ?", annResult.ID).Scan(&embeddingBlob)
-		if err != nil && err != sql.ErrNoRows {
+		var ID int64
+		if err := rows.Scan(&ID, &embeddingBlob); err != nil {
 			return nil, err
 		}
-
 		embedding := BytesToFloat32(embeddingBlob)
 		distance, err := EuclideanDistance(queryEmbedding, embedding)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(topResults) < limit {
-			topResults = append(topResults, VectorDistance{ID: annResult.ID, Distance: float32(distance)})
+		if len(topResults) <= limit {
+			topResults = append(topResults, VectorDistance{ID: ID, Distance: float32(distance)})
 		} else {
 			maxIndex := -1
 			maxDistance := float32(-1)
@@ -252,7 +274,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 				}
 			}
 			if maxIndex >= 0 && float32(distance) < maxDistance {
-				topResults[maxIndex] = VectorDistance{ID: annResult.ID, Distance: float32(distance)}
+				topResults[maxIndex] = VectorDistance{ID: ID, Distance: float32(distance)}
 			}
 		}
 	}
@@ -285,6 +307,8 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		result.Power = float64(vd.Distance)
 		results = append(results, result)
 	}
+
+	log.Printf("Search vector: %s (%v)", query, time.Since(start))
 
 	return results, nil
 }
