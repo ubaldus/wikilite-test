@@ -60,4 +60,4 @@ You can install a pre-built database by using the `--setup` option from the comm
 
 *   **Wikipedia**: For providing the valuable data that powers Wikilite.
 *   **SQLite**: For providing the robust database engine that enables fast and efficient local data storage.
-*   **llama.cpp**: For enabling the internal generation of embeddings, enhancing the semantic search capabilities of Wikilite.
+*   **llama.cpp**: For enabling the internal generation of embeddings, enhancing the standalone semantic search capabilities of Wikilite.

@@ -216,7 +216,7 @@ func (h *DBHandler) ProcessANN() error {
 		return fmt.Errorf("invalid quantization size")
 	}
 
-	log.Printf("Loading pending vector IDs for ANN processing using mode %s...", method)
+	log.Printf("Loading pending vector IDs for ANN processing using mode %s and size %d...", method, size)
 
 	rows, err := h.db.Query(`
         SELECT v.id 

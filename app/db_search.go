@@ -190,8 +190,6 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 				embeddingBlob := chunkBlob[position:(position + chunkSize)]
 
 				var distance float32
-				var err error
-
 				if options.aiAnnMode == "matrioshka" {
 					mrlQuery := queryEmbedding
 					if len(mrlQuery) > options.aiAnnSize {
@@ -201,14 +199,9 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 					storedMRL := BytesToFloat32(embeddingBlob)
 					distance, err = EuclideanDistance(mrlQuery, storedMRL)
 				}
-
 				if options.aiAnnMode == "binary" {
 					quantizedQuery := QuantizeBinary(queryEmbedding)
 					distance, err = HammingDistance(quantizedQuery, embeddingBlob)
-				}
-
-				if err != nil {
-					return nil, err
 				}
 
 				result.ChunkRowID = chunkRowID
