@@ -48,7 +48,7 @@ var (
 
 func parseConfig() (*Config, error) {
 	options = &Config{}
-	flag.StringVar(&options.aiAnnMode, "ai-ann-mode", "matrioshka", "Approximate Nearest Neighbor mode [matrioshka/binary]")
+	flag.StringVar(&options.aiAnnMode, "ai-ann-mode", "mrl", "Approximate Nearest Neighbor mode [mrl/binary]")
 	flag.BoolVar(&options.aiAnnOff, "ai-ann-off", false, "Disable ANN search mode")
 	flag.IntVar(&options.aiAnnSize, "ai-ann-size", 64, "ANN Matrioshka size")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")

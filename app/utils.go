@@ -143,15 +143,45 @@ func Float32ToBytes(values []float32) []byte {
 	return bytes
 }
 
+func NormalizeVectors(vectors [][]float32) [][]float32 {
+	normalized := make([][]float32, len(vectors))
+
+	for i, vec := range vectors {
+		if len(vec) == 0 {
+			normalized[i] = vec
+			continue
+		}
+
+		magnitude := float32(0.0)
+		for _, val := range vec {
+			magnitude += val * val
+		}
+		magnitude = float32(math.Sqrt(float64(magnitude)))
+
+		if magnitude == 0 {
+			normalized[i] = make([]float32, len(vec))
+			copy(normalized[i], vec)
+		} else {
+			normalized[i] = make([]float32, len(vec))
+			for j, val := range vec {
+				normalized[i][j] = val / magnitude
+			}
+		}
+	}
+
+	return normalized
+}
+
 func ExtractMRL(embedding []float32, size int) []byte {
 	if size <= 0 || size > len(embedding) {
 		size = len(embedding)
 	}
 
-	result := make([]byte, size*4)
+	normalized := NormalizeVectors([][]float32{embedding})[0]
 
+	result := make([]byte, size*4)
 	for i := 0; i < size; i++ {
-		bits := math.Float32bits(embedding[i])
+		bits := math.Float32bits(normalized[i])
 		binary.LittleEndian.PutUint32(result[i*4:(i+1)*4], bits)
 	}
 

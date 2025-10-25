@@ -25,6 +25,9 @@ func WikiImport(path string) (err error) {
 	if err != nil {
 		return
 	}
+	if err = db.SetupPut("version", Version); err != nil {
+		return
+	}
 	if err = db.SetupPut("language", options.language); err != nil {
 		return
 	}

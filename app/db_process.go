@@ -198,7 +198,7 @@ func (h *DBHandler) ProcessANN() error {
 	batchSize := 250
 	method := ""
 	size := 0
-	if options.aiAnnMode == "matrioshka" || options.aiAnnMode == "binary" {
+	if options.aiAnnMode == "mrl" || options.aiAnnMode == "binary" {
 		method = options.aiAnnMode
 		size = options.aiAnnSize
 		if err := db.SetupPut("annMode", method); err != nil {
@@ -315,7 +315,7 @@ func (h *DBHandler) ProcessANN() error {
 			embedding := BytesToFloat32(embeddings[i])
 
 			var annData []byte
-			if method == "matrioshka" {
+			if method == "mrl" {
 				annData = ExtractMRL(embedding, size)
 			} else if method == "binary" {
 				annData = QuantizeBinary(embedding)

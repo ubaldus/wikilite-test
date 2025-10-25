@@ -162,7 +162,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 	if !options.aiAnnOff {
 		chunkSize := 0
 		annLimit := limit * limit
-		if options.aiAnnMode == "matrioshka" {
+		if options.aiAnnMode == "mrl" {
 			chunkSize = options.aiAnnSize * 4
 		} else if options.aiAnnMode == "binary" {
 			chunkSize = (len(queryEmbedding) + 7) / 8
@@ -190,7 +190,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 				embeddingBlob := chunkBlob[position:(position + chunkSize)]
 
 				var distance float32
-				if options.aiAnnMode == "matrioshka" {
+				if options.aiAnnMode == "mrl" {
 					mrlQuery := queryEmbedding
 					if len(mrlQuery) > options.aiAnnSize {
 						mrlQuery = mrlQuery[:options.aiAnnSize]
