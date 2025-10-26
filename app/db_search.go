@@ -159,7 +159,7 @@ func (h *DBHandler) SearchVectors(query string, limit int) ([]SearchResult, erro
 		Distance      float32
 	}
 
-	if !options.aiAnnOff {
+	if !options.aiAnnOff && db.HasANN() {
 		chunkSize := 0
 		annLimit := limit * limit
 		if options.aiAnnMode == "mrl" {

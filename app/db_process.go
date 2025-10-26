@@ -191,7 +191,11 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		log.Printf("Embedding process completed with %d problematic sections that need manual review", len(problematicIDs))
 	}
 
-	return h.ProcessANN()
+	if !options.aiAnnOff {
+		return h.ProcessANN()
+	}
+
+	return nil
 }
 
 func (h *DBHandler) ProcessANN() error {

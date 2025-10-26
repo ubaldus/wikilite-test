@@ -201,12 +201,16 @@ func (h *DBHandler) Optimize() error {
 	return nil
 }
 
-func (h *DBHandler) IsEmpty() bool {
-	var count int
-	if err := h.db.QueryRow("SELECT COUNT(*) FROM sections").Scan(&count); err != nil {
-		return true
-	}
-	return count == 0
+func (h *DBHandler) HasAI() bool {
+	var id int
+	err := h.db.QueryRow("SELECT id FROM vectors LIMIT 1").Scan(&id)
+	return err != sql.ErrNoRows
+}
+
+func (h *DBHandler) HasANN() bool {
+	var id int
+	err := h.db.QueryRow("SELECT id FROM vectors_ann_index LIMIT 1").Scan(&id)
+	return err != sql.ErrNoRows
 }
 
 func (h *DBHandler) SetupPut(key, value string) (err error) {
