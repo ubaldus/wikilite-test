@@ -69,6 +69,7 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
     final_params.n_ctx = model_ctx_size;
     
     final_params.n_batch = model_ctx_size;
+    final_params.n_ubatch = model_ctx_size;
 
     final_params.n_gpu_layers = 0;
     final_params.use_mmap = false;
