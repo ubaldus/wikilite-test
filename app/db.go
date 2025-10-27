@@ -22,7 +22,7 @@ func (h *DBHandler) initializeDB() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS setup (
 			key TEXT PRIMARY KEY,
-			value TEXT DEFAULT ''
+			value BLOB
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS articles (
@@ -101,12 +101,6 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 
 	if language, err := handler.SetupGet("language"); err == nil && language != "" {
 		options.language = language
-	}
-
-	if options.aiModel == "" {
-		if model, err := handler.SetupGet("model"); err == nil && model != "" {
-			options.aiModel = model
-		}
 	}
 
 	if annMode, err := handler.SetupGet("annMode"); err == nil && annMode != "" {
@@ -199,18 +193,6 @@ func (h *DBHandler) Optimize() error {
 	}
 
 	return nil
-}
-
-func (h *DBHandler) HasAI() bool {
-	var id int
-	err := h.db.QueryRow("SELECT id FROM vectors LIMIT 1").Scan(&id)
-	return err != sql.ErrNoRows
-}
-
-func (h *DBHandler) HasANN() bool {
-	var id int
-	err := h.db.QueryRow("SELECT id FROM vectors_ann_index LIMIT 1").Scan(&id)
-	return err != sql.ErrNoRows
 }
 
 func (h *DBHandler) SetupPut(key, value string) (err error) {
@@ -319,4 +301,16 @@ func (h *DBHandler) ArticleGet(articleID int) (ArticleResult, error) {
 	}
 
 	return article, nil
+}
+
+func (h *DBHandler) HasAI() bool {
+	var id int
+	err := h.db.QueryRow("SELECT id FROM vectors LIMIT 1").Scan(&id)
+	return err != sql.ErrNoRows
+}
+
+func (h *DBHandler) HasANN() bool {
+	var id int
+	err := h.db.QueryRow("SELECT id FROM vectors_ann_index LIMIT 1").Scan(&id)
+	return err != sql.ErrNoRows
 }

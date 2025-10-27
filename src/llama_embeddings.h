@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h> 
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,6 +20,8 @@ float* llama_embeddings_get(const char* text, int* n_embd_out);
 void llama_embeddings_free_output(float* output);
 
 void llama_embeddings_free(void);
+
+void llama_copy_memory_buffer(const void* buf, size_t size);
 
 #ifdef __cplusplus
 }
