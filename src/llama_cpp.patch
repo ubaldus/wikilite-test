@@ -1,11 +1,23 @@
-diff --git a/llama.cpp/ggml/src/ggml.c b/llama.cpp/ggml/src/ggml.c
-index 86f1c31af..af90b40b9 100644
+diff --git a/llama.cpp/ggml/src/ggml.c b/ggml/src/ggml.c
+index 86f1c31af..1072c0b96 100644
 --- a/llama.cpp/ggml/src/ggml.c
 +++ b/llama.cpp/ggml/src/ggml.c
-@@ -555,7 +555,27 @@ static wchar_t * ggml_mbstowcs(const char * mbs) {
+@@ -555,8 +555,8 @@ static wchar_t * ggml_mbstowcs(const char * mbs) {
  }
  #endif
  
+-FILE * ggml_fopen(const char * fname, const char * mode) {
+ #ifdef _WIN32
++FILE * ggml_fopen(const char * fname, const char * mode) {
+     FILE * file = NULL;
+ 
+     // convert fname (UTF-8)
+@@ -577,11 +577,33 @@ FILE * ggml_fopen(const char * fname, const char * mode) {
+     }
+ 
+     return file;
++}
+ #else
 +typedef struct {
 +    const void * buf;
 +    size_t       size;
@@ -18,7 +30,7 @@ index 86f1c31af..af90b40b9 100644
 +    g_memory_file.size = size;
 +}
 +
- FILE * ggml_fopen(const char * fname, const char * mode) {
++FILE * ggml_fopen(const char * fname, const char * mode) {
 +    const char * memory_magic_prefix = "memory:";
 +    if (g_memory_file.buf != NULL && strncmp(fname, memory_magic_prefix, strlen(memory_magic_prefix)) == 0) {
 +        FILE* result = fmemopen((void *)g_memory_file.buf, g_memory_file.size, mode);
@@ -27,5 +39,11 @@ index 86f1c31af..af90b40b9 100644
 +        }
 +        return result;
 +    }
- #ifdef _WIN32
-     FILE * file = NULL;
+     return fopen(fname, mode);
++}
+ #endif
+ 
+-}
+ 
+ static const struct ggml_type_traits type_traits[GGML_TYPE_COUNT] = {
+     [GGML_TYPE_I8] = {
