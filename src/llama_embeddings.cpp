@@ -15,7 +15,9 @@ static bool g_initialized = false;
 static void* g_copied_buffer = nullptr;
 static size_t g_copied_size = 0;
 
-#ifndef _WIN32
+#ifdef _WIN32
+void llama_copy_memory_buffer(const void* buf, size_t size) { (void)buf; (void)size; }
+#else
 extern "C" {
     typedef struct {
         const void * buf;
