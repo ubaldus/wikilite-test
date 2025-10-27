@@ -21,7 +21,9 @@ void llama_embeddings_free_output(float* output);
 
 void llama_embeddings_free(void);
 
+#ifndef _WIN32
 void llama_copy_memory_buffer(const void* buf, size_t size);
+#endif
 
 #ifdef __cplusplus
 }

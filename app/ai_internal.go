@@ -47,6 +47,7 @@ func aiInternalInit() error {
 			return err
 		}
 		modelPath = tmpFile.Name()
+		modelData = nil
 	}
 
 	cModelPath := C.CString(modelPath)
