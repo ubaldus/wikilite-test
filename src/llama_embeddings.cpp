@@ -15,6 +15,7 @@ static bool g_initialized = false;
 static void* g_copied_buffer = nullptr;
 static size_t g_copied_size = 0;
 
+#ifndef _WIN32
 extern "C" {
     typedef struct {
         const void * buf;
@@ -39,6 +40,7 @@ void llama_copy_memory_buffer(const void* buf, size_t size) {
         fprintf(stderr, "Failed to allocate memory for model copy\n");
     }
 }
+#endif
 
 void silent_log_callback(ggml_log_level level, const char * text, void * user_data) {
     (void)level;
