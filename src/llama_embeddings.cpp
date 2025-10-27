@@ -40,16 +40,6 @@ void llama_copy_memory_buffer(const void* buf, size_t size) {
     }
 }
 
-/*
-void llama_embeddings_free_memory_buffer(void) {
-    if (g_copied_buffer) {
-        free(g_copied_buffer);
-        g_copied_buffer = nullptr;
-        g_copied_size = 0;
-    }
-    ggml_set_memory_buffer(nullptr, 0);
-}*/
-
 void silent_log_callback(ggml_log_level level, const char * text, void * user_data) {
     (void)level;
     (void)text;
@@ -65,14 +55,14 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
 
     #if defined(_WIN32)
         ggml_backend_load_all();
-    #endif
-
+    #else
     if (strcmp(model_path, "memory:") == 0) {
         if (g_memory_file.buf == nullptr) {
             fprintf(stderr, "Error: 'memory:' path specified but buffer not set. Call llama_copy_memory_buffer first.\n");
             return 1;
         }
     }
+    #endif
 
     common_params temp_params = {};
     temp_params.model.path = model_path;

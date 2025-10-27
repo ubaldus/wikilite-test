@@ -40,7 +40,7 @@ ifeq ($(GOOS),windows)
 endif
 
 ifeq ($(LOCAL_EMBEDDINGS_SUPPORTED),true)
-wikilite: CMakeLists.txt $(shell find app -type f)
+wikilite: CMakeLists.txt $(shell find app -type f) $(shell find src -type f)
 	@if ! grep -q "ggml_set_memory_buffer" llama.cpp/ggml/src/ggml.c; then patch -p1 < src/llama_cpp.patch; fi
 	@mkdir -p build
 	@cd build && cmake .. $(CMAKE_GENERATOR)

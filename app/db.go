@@ -302,15 +302,3 @@ func (h *DBHandler) ArticleGet(articleID int) (ArticleResult, error) {
 
 	return article, nil
 }
-
-func (h *DBHandler) HasAI() bool {
-	var id int
-	err := h.db.QueryRow("SELECT id FROM vectors LIMIT 1").Scan(&id)
-	return err != sql.ErrNoRows
-}
-
-func (h *DBHandler) HasANN() bool {
-	var id int
-	err := h.db.QueryRow("SELECT id FROM vectors_ann_index LIMIT 1").Scan(&id)
-	return err != sql.ErrNoRows
-}

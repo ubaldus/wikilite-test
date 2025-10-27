@@ -3,6 +3,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 )
@@ -37,4 +38,10 @@ func (h *DBHandler) AiModelLoad() []byte {
 	}
 
 	return data
+}
+
+func (h *DBHandler) AiHasANN() bool {
+	var id int
+	err := h.db.QueryRow("SELECT id FROM vectors_ann_index LIMIT 1").Scan(&id)
+	return err != sql.ErrNoRows
 }
