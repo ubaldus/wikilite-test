@@ -11,15 +11,17 @@ import (
 	"runtime"
 )
 
-const Version = "0.22"
+const Version = "0.24"
 
 type Config struct {
 	aiAnnMode           string
 	aiAnnOff            bool
 	aiAnnSize           int
+	aiApi               bool
 	aiApiKey            string
 	aiApiUrl            string
 	aiModel             string
+	aiModelImport       string
 	aiModelPrefixSave   string
 	aiModelPrefixSearch string
 	aiThreads           int
@@ -49,25 +51,27 @@ var (
 func parseConfig() (*Config, error) {
 	options = &Config{}
 	flag.StringVar(&options.aiAnnMode, "ai-ann-mode", "mrl", "Approximate Nearest Neighbor mode [mrl/binary]")
-	flag.BoolVar(&options.aiAnnOff, "ai-ann-off", false, "Disable ANN search mode")
-	flag.IntVar(&options.aiAnnSize, "ai-ann-size", 64, "ANN Matrioshka size")
+	flag.BoolVar(&options.aiAnnOff, "ai-ann-off", false, "Disable ANN search")
+	flag.IntVar(&options.aiAnnSize, "ai-ann-size", 64, "ANN MRL size")
+	flag.BoolVar(&options.aiApi, "ai-api", false, "Use API for embeddings generation")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
-	flag.StringVar(&options.aiApiUrl, "ai-api-url", "http://localhost:11434/v1/embeddings", "AI API base url")
-	flag.StringVar(&options.aiModel, "ai-model", "", "AI embedding model")
+	flag.StringVar(&options.aiApiUrl, "ai-api-url", "http://localhost:11434/v1/embeddings", "AI API url")
+	flag.StringVar(&options.aiModel, "ai-model", "", "AI embedding model name")
+	flag.StringVar(&options.aiModelImport, "ai-model-import", "", "Import AI model from file path")
 	flag.StringVar(&options.aiModelPrefixSave, "ai-model-prefix-save", "", "AI embedding model task prefix to import a document")
 	flag.StringVar(&options.aiModelPrefixSearch, "ai-model-prefix-search", "", "AI embedding model task prefix to perform a search")
-	flag.IntVar(&options.aiThreads, "ai-threads", 0, "AI embedding generation threads (default all)")
-	flag.BoolVar(&options.aiSync, "ai-sync", false, "AI generate embeddings")
+	flag.IntVar(&options.aiThreads, "ai-threads", 0, "Embedding generation threads (default all)")
+	flag.BoolVar(&options.aiSync, "ai-sync", false, "Generate embeddings")
 
-	flag.BoolVar(&options.cli, "cli", false, "Interactive search")
+	flag.BoolVar(&options.cli, "cli", false, "Interactive CLI search")
 
 	flag.StringVar(&options.dbPath, "db", "wikilite.db", "SQLite database path")
 
-	flag.StringVar(&options.language, "language", "en", "Language")
+	flag.StringVar(&options.language, "language", "en", "Language code")
 	flag.IntVar(&options.limit, "limit", 5, "Maximum number of search results")
 	flag.BoolVar(&options.log, "log", false, "Enable logging")
 	flag.StringVar(&options.logFile, "log-file", "", "Log file path")
-	flag.BoolVar(&options.setup, "setup", false, "Download a ready made database and embeddings model")
+	flag.BoolVar(&options.setup, "setup", false, "Download prebuild database")
 	flag.BoolVar(&options.help, "help", false, "This help")
 
 	flag.BoolVar(&options.web, "web", false, "Enable web interface")
@@ -76,7 +80,7 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.webTlsPrivate, "web-tls-private", "", "TLS private certificate")
 	flag.StringVar(&options.webTlsPublic, "web-tls-public", "", "TLS public certificate")
 
-	flag.StringVar(&options.wikiImport, "wiki-import", "", "URL or file path for wikipedia import")
+	flag.StringVar(&options.wikiImport, "wiki-import", "", "Wikipedia URL or file path to import")
 
 	flag.Usage = func() {
 		fmt.Println("Copyright:", "2024-2025 by Ubaldo Porcheddu <ubaldo@eja.it>")
@@ -143,9 +147,15 @@ func main() {
 		ai = true
 	}
 
-	if options.aiSync || options.wikiImport != "" {
+	if options.aiSync || options.wikiImport != "" || options.aiModelImport != "" {
 		if err := db.PragmaImportMode(); err != nil {
 			log.Fatalf("Error setting database in import mode: %v\n", err)
+		}
+
+		if options.aiModelImport != "" {
+			if err = db.AiModelImport(options.aiModelImport); err != nil {
+				log.Fatalf("Error importing model file into the database: %v\n", err)
+			}
 		}
 
 		if options.wikiImport != "" {

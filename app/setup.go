@@ -53,21 +53,10 @@ func SetupFilterDBFiles(siblings []SetupSibling) []SetupSibling {
 	partRegex := regexp.MustCompile(`\.db(-\d+)?\.gz$`)
 	for _, sibling := range siblings {
 		if partRegex.MatchString(sibling.Rfilename) {
-			if localAiEnabled() || SetupGetGGUFFileName(sibling.Rfilename) == "" {
-				dbFiles = append(dbFiles, sibling)
-			}
+			dbFiles = append(dbFiles, sibling)
 		}
 	}
 	return dbFiles
-}
-
-func SetupGetGGUFFileName(dbFile string) string {
-	name := strings.TrimSuffix(dbFile, ".db.gz")
-	prefixIndex := strings.Index(name, ".")
-	if prefixIndex > 0 {
-		return name[prefixIndex+1:] + ".gguf"
-	}
-	return ""
 }
 
 func SetupDownloadFile(file string, outputPath string, progressCallback func(float64)) error {
@@ -140,7 +129,7 @@ func (pr *SetupProgressReader) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressDbCallback func(string, float64), progressAiCallback func(string, float64)) error {
+func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressDbCallback func(string, float64)) error {
 	for _, part := range selectedGroup {
 		err := SetupGunzipFile(part.Rfilename, options.dbPath, func(progress float64) {
 			if progressDbCallback != nil {
@@ -151,26 +140,6 @@ func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressDbCallback fu
 			return fmt.Errorf("error downloading and extracting file %s: %v", part.Rfilename, err)
 		} else {
 			db, _ = NewDBHandler(options.dbPath)
-		}
-	}
-
-	ggufFile := SetupGetGGUFFileName(selectedGroup[0].Rfilename)
-	if ggufFile != "" {
-		if _, err := os.Stat(ggufFile); err == nil {
-			return fmt.Errorf("%s already exists", ggufFile)
-		}
-
-		err := SetupDownloadFile("models/"+ggufFile, ggufFile, func(progress float64) {
-			if progressAiCallback != nil {
-				progressAiCallback(ggufFile, progress)
-			}
-		})
-		if err != nil {
-			return fmt.Errorf("error downloading .gguf file: %v", err)
-		} else {
-			if err := aiInit(); err == nil {
-				ai = true
-			}
 		}
 	}
 
@@ -227,8 +196,6 @@ func Setup() {
 		if progress >= 100 {
 			fmt.Println()
 		}
-	}, func(file string, progress float64) {
-		fmt.Printf("\rDownloading %s: %.2f%%", file, progress)
 	})
 	fmt.Println()
 	if err != nil {

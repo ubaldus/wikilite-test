@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 )
 
 type aiEmbeddingRequest struct {
@@ -34,40 +33,7 @@ type aiEmbeddingResponse struct {
 	} `json:"error"`
 }
 
-var aiIsLocal bool
-
-func aiModelIsLocal(value string) bool {
-	if !localAiEnabled() {
-		return false
-	}
-
-	if _, err := os.Stat(value); err == nil {
-		return true
-	}
-	if _, err := os.Stat(value + ".gguf"); err == nil {
-		options.aiModel = value + ".gguf"
-		return true
-	}
-	return false
-}
-
 func aiInit() (err error) {
-	if aiModelIsLocal(options.aiModel) {
-		aiIsLocal = true
-	}
-
-	if aiIsLocal {
-		aiModelPath := options.aiModel
-		if _, err := os.Stat(aiModelPath); err != nil {
-			if _, err := os.Stat(aiModelPath + ".gguf"); err == nil {
-				aiModelPath += ".gguf"
-			}
-		}
-		if err := localAiInit(aiModelPath); err != nil {
-			return err
-		}
-	}
-
 	if _, err := aiEmbeddings("test"); err != nil {
 		return fmt.Errorf("AI error loading embedding model: %v", err)
 	}
@@ -75,11 +41,7 @@ func aiInit() (err error) {
 	return nil
 }
 
-func aiEmbeddings(input string) (output []float32, err error) {
-	if aiIsLocal {
-		return localAiEmbeddings(input)
-	}
-
+func aiApiEmbeddings(input string) (output []float32, err error) {
 	url := options.aiApiUrl
 	payload := aiEmbeddingRequest{
 		Model:          options.aiModel,

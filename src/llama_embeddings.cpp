@@ -6,11 +6,43 @@
 #include "ggml.h"
 #include <vector>
 #include <string>
+#include <cstring> 
 
 static common_params g_params;
 static llama_model* g_model = nullptr;
 static llama_context* g_ctx = nullptr;
 static bool g_initialized = false;
+static void* g_copied_buffer = nullptr;
+static size_t g_copied_size = 0;
+
+#ifdef _WIN32
+void llama_copy_memory_buffer(const void* buf, size_t size) { (void)buf; (void)size; }
+#else
+extern "C" {
+    typedef struct {
+        const void * buf;
+        size_t       size;
+    } ggml_memory_file_t;
+    
+    extern ggml_memory_file_t g_memory_file;
+    void ggml_set_memory_buffer(const void * buf, size_t size);
+}
+
+void llama_copy_memory_buffer(const void* buf, size_t size) {
+    if (g_copied_buffer) {
+        free(g_copied_buffer);
+    }
+    
+    g_copied_buffer = malloc(size);
+    if (g_copied_buffer) {
+        memcpy(g_copied_buffer, buf, size);
+        g_copied_size = size;
+        ggml_set_memory_buffer(g_copied_buffer, size);
+    } else {
+        fprintf(stderr, "Failed to allocate memory for model copy\n");
+    }
+}
+#endif
 
 void silent_log_callback(ggml_log_level level, const char * text, void * user_data) {
     (void)level;
@@ -27,6 +59,13 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
 
     #if defined(_WIN32)
         ggml_backend_load_all();
+    #else
+    if (strcmp(model_path, "memory:") == 0) {
+        if (g_memory_file.buf == nullptr) {
+            fprintf(stderr, "Error: 'memory:' path specified but buffer not set. Call llama_copy_memory_buffer first.\n");
+            return 1;
+        }
+    }
     #endif
 
     common_params temp_params = {};
@@ -49,7 +88,7 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
     
     if (temp_model == nullptr) {
         llama_log_set(NULL, NULL);
-        fprintf(stderr, "Error: Failed to initialize model from '%s'\n", model_path);
+        fprintf(stderr, "Error: Failed to initialize model from '%s' (pass 1)\n", model_path);
         return 1;
     }
 
@@ -82,7 +121,7 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
 
     if (g_model == nullptr || g_ctx == nullptr) {
         llama_log_set(NULL, NULL);
-        fprintf(stderr, "Error: Failed to initialize model or context from '%s'\n", model_path);
+        fprintf(stderr, "Error: Failed to initialize model or context from '%s' (pass 2)\n", model_path);
         if (g_model) llama_model_free(g_model);
         if (g_ctx) llama_free(g_ctx);
         g_model = nullptr;
@@ -91,7 +130,6 @@ int llama_embeddings_init(const char* model_path, int n_threads) {
     }
 
     g_params = final_params;
-
     g_initialized = true;
     return 0;
 }
@@ -109,7 +147,6 @@ float* llama_embeddings_get(const char* text, int* n_embd_out) {
         *n_embd_out = 0;
         return NULL;
     }
-
 
     if ((int)tokens.size() > max_context_tokens) {
         fprintf(stderr, "Warning: Input text exceeds maximum context length (%d tokens). Truncating to %d tokens.\n", 
@@ -192,4 +229,3 @@ int llama_embeddings_get_dimension(void) {
     if (!g_initialized) return -1;
     return llama_model_n_embd(g_model);
 }
-

@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -45,10 +44,11 @@ func (h *DBHandler) ProcessVocabulary() error {
 
 func (h *DBHandler) ProcessEmbeddings() (err error) {
 	batchSize := 250
-	aiModelBasename := filepath.Base(options.aiModel)
-	aiModelName := strings.TrimSuffix(aiModelBasename, ".gguf")
-	if err = db.SetupPut("model", aiModelName); err != nil {
-		return
+
+	if options.aiModel != "" {
+		if err = db.SetupPut("model", options.aiModel); err != nil {
+			return
+		}
 	}
 
 	if err = db.SetupPut("modelPrefixSave", options.aiModelPrefixSave); err != nil {
