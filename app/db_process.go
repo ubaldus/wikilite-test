@@ -45,6 +45,12 @@ func (h *DBHandler) ProcessVocabulary() error {
 func (h *DBHandler) ProcessEmbeddings() (err error) {
 	batchSize := 250
 
+	if options.aiModel != "" {
+		if err = db.SetupPut("model", options.aiModel); err != nil {
+			return
+		}
+	}
+
 	if err = db.SetupPut("modelPrefixSave", options.aiModelPrefixSave); err != nil {
 		return
 	}

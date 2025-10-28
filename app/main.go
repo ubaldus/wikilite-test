@@ -11,15 +11,16 @@ import (
 	"runtime"
 )
 
-const Version = "0.23"
+const Version = "0.24"
 
 type Config struct {
 	aiAnnMode           string
 	aiAnnOff            bool
 	aiAnnSize           int
+	aiApi               bool
 	aiApiKey            string
 	aiApiUrl            string
-	aiApiModel          string
+	aiModel             string
 	aiModelImport       string
 	aiModelPrefixSave   string
 	aiModelPrefixSearch string
@@ -52,9 +53,10 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&options.aiAnnMode, "ai-ann-mode", "mrl", "Approximate Nearest Neighbor mode [mrl/binary]")
 	flag.BoolVar(&options.aiAnnOff, "ai-ann-off", false, "Disable ANN search")
 	flag.IntVar(&options.aiAnnSize, "ai-ann-size", 64, "ANN MRL size")
+	flag.BoolVar(&options.aiApi, "ai-api", false, "Use API for embeddings generation")
 	flag.StringVar(&options.aiApiKey, "ai-api-key", "", "AI API key")
 	flag.StringVar(&options.aiApiUrl, "ai-api-url", "http://localhost:11434/v1/embeddings", "AI API url")
-	flag.StringVar(&options.aiApiModel, "ai-api-model", "", "AI embedding model name")
+	flag.StringVar(&options.aiModel, "ai-model", "", "AI embedding model name")
 	flag.StringVar(&options.aiModelImport, "ai-model-import", "", "Import AI model from file path")
 	flag.StringVar(&options.aiModelPrefixSave, "ai-model-prefix-save", "", "AI embedding model task prefix to import a document")
 	flag.StringVar(&options.aiModelPrefixSearch, "ai-model-prefix-search", "", "AI embedding model task prefix to perform a search")

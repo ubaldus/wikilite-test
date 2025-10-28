@@ -44,7 +44,7 @@ func aiInit() (err error) {
 func aiApiEmbeddings(input string) (output []float32, err error) {
 	url := options.aiApiUrl
 	payload := aiEmbeddingRequest{
-		Model:          options.aiApiModel,
+		Model:          options.aiModel,
 		Input:          input,
 		EncodingFormat: "float",
 	}

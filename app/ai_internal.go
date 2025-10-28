@@ -70,7 +70,7 @@ func aiInternalInit() error {
 }
 
 func aiEmbeddings(input string) ([]float32, error) {
-	if options.aiApiModel != "" {
+	if options.aiApi {
 		return aiApiEmbeddings(input)
 	} else {
 		if err := aiInternalInitOnce(); err != nil {

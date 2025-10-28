@@ -103,6 +103,10 @@ func NewDBHandler(dbPath string) (*DBHandler, error) {
 		options.language = language
 	}
 
+	if model, err := handler.SetupGet("model"); err == nil && model != "" {
+		options.aiModel = model
+	}
+
 	if annMode, err := handler.SetupGet("annMode"); err == nil && annMode != "" {
 		options.aiAnnMode = annMode
 	}
