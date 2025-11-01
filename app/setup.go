@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bufio"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -175,9 +174,9 @@ func Setup() {
 		fmt.Printf("%d. %s\n", i+1, key)
 	}
 
+	input := ""
 	fmt.Print("Choose a file by number or enter to exit: ")
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
+	fmt.Scanln(&input)
 	var choice int
 	_, err = fmt.Sscanf(input, "%d", &choice)
 	if err != nil || choice < 1 || choice > len(groupKeys) {

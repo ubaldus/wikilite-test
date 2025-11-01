@@ -13,9 +13,12 @@ import (
 	"io"
 	"math"
 	"os"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //go:embed assets
@@ -186,4 +189,37 @@ func ExtractMRL(embedding []float32, size int) []byte {
 	}
 
 	return result
+}
+
+func OpenBrowser(url string, delay int) error {
+	var cmd string
+	var args []string
+
+	if delay > 0 {
+		time.Sleep(time.Duration(delay) * time.Second)
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start", url}
+	case "darwin":
+		cmd = "open"
+		args = []string{url}
+	default:
+		cmd = "xdg-open"
+		args = []string{url}
+	}
+
+	return exec.Command(cmd, args...).Start()
+}
+
+func ReadLine(prompt string) string {
+	if prompt != "" {
+		fmt.Print(prompt)
+	}
+
+	var input string
+	fmt.Scanln(&input)
+	return input
 }

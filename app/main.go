@@ -11,7 +11,7 @@ import (
 	"runtime"
 )
 
-const Version = "0.24"
+const Version = "0.25"
 
 type Config struct {
 	aiAnnMode           string
@@ -35,6 +35,7 @@ type Config struct {
 	logFile             string
 	setup               bool
 	web                 bool
+	webBrowser          bool
 	webHost             string
 	webPort             int
 	webTlsPrivate       string
@@ -75,6 +76,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.help, "help", false, "This help")
 
 	flag.BoolVar(&options.web, "web", false, "Enable web interface")
+	flag.BoolVar(&options.webBrowser, "web-browser", false, "Open the default browser to the web server address")
 	flag.StringVar(&options.webHost, "web-host", "localhost", "Web server host")
 	flag.IntVar(&options.webPort, "web-port", 35248, "Web server port")
 	flag.StringVar(&options.webTlsPrivate, "web-tls-private", "", "TLS private certificate")
@@ -180,6 +182,9 @@ func main() {
 	}
 
 	if options.web {
+		if options.webBrowser {
+			OpenBrowser(fmt.Sprintf("http://localhost:%d/", options.webPort), 1)
+		}
 		if err := WebStart(options.webHost, options.webPort); err != nil {
 			log.Fatalf("Error starting web server: %v\n", err)
 		}

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 )
 
 func autoStart() {
+	ask := ""
 	exePath, err := os.Executable()
 	if err != nil {
 		log.Fatal(err)
@@ -20,10 +22,22 @@ func autoStart() {
 	}
 	if _, err := os.Stat(options.dbPath); err != nil {
 		options.setup = true
-		fmt.Printf("When the setup is ready navigate to http://localhost:%d\n\n", options.webPort)
-	} else {
-		fmt.Printf("Navigate to http://localhost:%d\n", options.webPort)
 	}
 
-	options.web = true
+	ask = ReadLine("Launch web search? (Y/n): ")
+	if ask != "n" {
+		options.web = true
+		ask = ReadLine("Launch Browser when ready? (Y/n): ")
+		if ask != "n" {
+			options.webBrowser = true
+		}
+	} else {
+		ask = ReadLine("Launch CLI search? (Y/n): ")
+		if ask != "n" {
+			options.cli = true
+			fmt.Println("")
+		} else {
+			flag.Usage()
+		}
+	}
 }
