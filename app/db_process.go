@@ -87,7 +87,6 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 
 	if totalCount == 0 {
 		log.Printf("No sections to process for embeddings")
-		return h.ProcessANN()
 	}
 
 	startTime := time.Now()
@@ -191,7 +190,7 @@ func (h *DBHandler) ProcessEmbeddings() (err error) {
 		log.Printf("Embedding process completed with %d problematic sections that need manual review", len(problematicIDs))
 	}
 
-	if !options.aiAnnOff {
+	if options.aiAnn {
 		return h.ProcessANN()
 	}
 
@@ -216,7 +215,7 @@ func (h *DBHandler) ProcessANN() error {
 	if method == "" {
 		return fmt.Errorf("invalid quantization method")
 	}
-	if size == 0 {
+	if method == "mrl" && size == 0 {
 		return fmt.Errorf("invalid quantization size")
 	}
 

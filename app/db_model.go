@@ -45,3 +45,9 @@ func (h *DBHandler) AiHasANN() bool {
 	err := h.db.QueryRow("SELECT id FROM vectors_ann_index LIMIT 1").Scan(&id)
 	return err != sql.ErrNoRows
 }
+
+func (h *DBHandler) AiHasVectors() bool {
+	var id int
+	err := h.db.QueryRow("SELECT id FROM vectors LIMIT 1").Scan(&id)
+	return err != sql.ErrNoRows
+}

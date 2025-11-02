@@ -40,3 +40,10 @@ type InputArticle struct {
 	} `json:"article_body"`
 	Identifier int `json:"identifier"`
 }
+
+type VectorDistance struct {
+	ID            int64
+	ChunkRowID    int64
+	ChunkPosition int
+	Distance      float32
+}
