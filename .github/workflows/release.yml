@@ -23,7 +23,7 @@ jobs:
         run: make
 
       - name: Compress artifact
-        run: tar -czvf wikilite-macos-amd64.tar.gz wikilite
+        run: tar -C build/bin -czvf wikilite-macos-amd64.tar.gz wikilite
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -50,10 +50,10 @@ jobs:
           go-version: '1.24'
 
       - name: Build wikilite for MacOS ARM64
-        run: make
+        run: make static
 
       - name: Compress artifact
-        run: tar -czvf wikilite-macos-arm64.tar.gz wikilite
+        run: tar -C build/bin -czvf wikilite-macos-arm64.tar.gz wikilite
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -80,10 +80,10 @@ jobs:
           go-version: '1.24'
           
       - name: Build wikilite for Linux AMD64
-        run: make
+        run: make static
 
       - name: Compress artifact
-        run: tar -czvf wikilite-linux-amd64.tar.gz wikilite
+        run: tar -C build/bin -czvf wikilite-linux-amd64.tar.gz wikilite
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -113,7 +113,7 @@ jobs:
         run: make
 
       - name: Compress artifact
-        run: tar -czvf wikilite-linux-arm64.tar.gz wikilite
+        run: tar -C build/bin -czvf wikilite-linux-arm64.tar.gz wikilite
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
@@ -123,46 +123,6 @@ jobs:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: wikilite-linux-arm64.tar.gz
           asset_name: wikilite-linux-arm64.tar.gz
-          asset_content_type: application/octet-stream
-          
-  build-linux-arm32:
-    name: Build for Linux ARM32
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-
-      - name: Install ARM32 cross-compiler
-        run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabi g++-arm-linux-gnueabi libsqlite3-dev
-
-      - name: Build wikilite for Linux ARM32
-        run: |
-          CGO_ENABLED=1 \
-          CC=arm-linux-gnueabi-gcc \
-          CXX=arm-linux-gnueabi-g++ \
-          GOOS=linux \
-          GOARCH=arm \
-          GOARM=7 \
-          make
-          
-      - name: Compress artifact
-        run: tar -czvf wikilite-linux-arm32.tar.gz wikilite
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-linux-arm32.tar.gz
-          asset_name: wikilite-linux-arm32.tar.gz
           asset_content_type: application/octet-stream
 
   build-windows-amd64:
@@ -185,12 +145,17 @@ jobs:
 
       - name: Build wikilite for Windows AMD64
         shell: bash
-        run: make
+        run: |
+          rm -rf build 
+          mkdir build 
+          cd build 
+          cmake -G "MinGW Makefiles" ..
+          make
 
       - name: Package artifacts into a Zip file
         run: |
           mkdir release
-          copy wikilite.exe release\
+          copy build/bin/wikilite.exe release\
           copy build\bin\*.dll release\
           copy C:\mingw64\bin\libwinpthread-1.dll release\
           copy C:\mingw64\bin\libstdc++-6.dll release\

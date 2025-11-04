@@ -1,6 +1,3 @@
-wikilite
-wikilite.exe
-dist/
 build/
 *.gguf
 *.db
