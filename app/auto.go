@@ -4,14 +4,31 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
+func autoWeb() {
+	ask := ReadLine("Launch web search? (Y/n): ")
+	if ask != "n" {
+		options.web = true
+		ask = ReadLine("Launch browser when ready? (Y/n): ")
+		if ask != "n" {
+			options.webBrowser = true
+		}
+	}
+}
+
+func autoCli() {
+	ask := ReadLine("Launch CLI search? (Y/n): ")
+	if ask != "n" {
+		options.cli = true
+	}
+}
+
 func autoStart() {
-	ask := ""
 	exePath, err := os.Executable()
 	if err != nil {
 		log.Fatal(err)
@@ -24,20 +41,19 @@ func autoStart() {
 		options.setup = true
 	}
 
-	ask = ReadLine("Launch web search? (Y/n): ")
-	if ask != "n" {
-		options.web = true
-		ask = ReadLine("Launch Browser when ready? (Y/n): ")
-		if ask != "n" {
-			options.webBrowser = true
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		autoWeb()
+		if options.web == false {
+			autoCli()
 		}
 	} else {
-		ask = ReadLine("Launch CLI search? (Y/n): ")
-		if ask != "n" {
-			options.cli = true
-			fmt.Println("")
-		} else {
-			flag.Usage()
+		autoCli()
+		if options.cli == false {
+			autoWeb()
 		}
+	}
+	if options.web == false && options.cli == false {
+		flag.Usage()
+		os.Exit(0)
 	}
 }

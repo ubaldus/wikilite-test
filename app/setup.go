@@ -4,14 +4,19 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 const SetupDBListUrl = "https://huggingface.co/api/datasets/eja/wikilite"
@@ -31,8 +36,24 @@ type SetupProgressReader struct {
 	progressCallback func(float64)
 }
 
+func createHTTPClient() *http.Client {
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		pool = x509.NewCertPool()
+	}
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs:            pool,
+			InsecureSkipVerify: len(pool.Subjects()) == 0,
+		},
+	}
+	return &http.Client{Transport: tr}
+}
+
 func SetupFetchDatasetInfo() (*SetupDatasetInfo, error) {
-	resp, err := http.Get(SetupDBListUrl)
+	client := createHTTPClient()
+	resp, err := client.Get(SetupDBListUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +80,8 @@ func SetupFilterDBFiles(siblings []SetupSibling) []SetupSibling {
 }
 
 func SetupDownloadFile(file string, outputPath string, progressCallback func(float64)) error {
-	resp, err := http.Get(SetupDBBaseUrl + file)
+	client := createHTTPClient()
+	resp, err := client.Get(SetupDBBaseUrl + file)
 	if err != nil {
 		return err
 	}
@@ -84,7 +106,8 @@ func SetupDownloadFile(file string, outputPath string, progressCallback func(flo
 }
 
 func SetupGunzipFile(file string, outputPath string, progressCallback func(float64)) error {
-	resp, err := http.Get(SetupDBBaseUrl + file)
+	client := createHTTPClient()
+	resp, err := client.Get(SetupDBBaseUrl + file)
 	if err != nil {
 		return fmt.Errorf("failed to download file: %v", err)
 	}
@@ -146,6 +169,14 @@ func SetupDownloadAndExtract(selectedGroup []SetupSibling, progressDbCallback fu
 }
 
 func Setup() {
+	net.DefaultResolver.PreferGo = true
+	net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+		d := net.Dialer{
+			Timeout: 30 * time.Second,
+		}
+		return d.DialContext(ctx, "udp", "8.8.8.8:53")
+	}
+
 	datasetInfo, err := SetupFetchDatasetInfo()
 	if err != nil {
 		fmt.Println("Error fetching dataset info:", err)
