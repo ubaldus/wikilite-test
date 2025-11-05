@@ -50,7 +50,7 @@ jobs:
           go-version: '1.24'
 
       - name: Build wikilite for MacOS ARM64
-        run: make static
+        run: make
 
       - name: Compress artifact
         run: tar -C build/bin -czvf wikilite-macos-arm64.tar.gz wikilite
@@ -110,7 +110,7 @@ jobs:
           go-version: '1.24'
 
       - name: Build wikilite for Linux ARM64
-        run: make
+        run: make static
 
       - name: Compress artifact
         run: tar -C build/bin -czvf wikilite-linux-arm64.tar.gz wikilite
