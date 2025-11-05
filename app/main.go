@@ -11,7 +11,7 @@ import (
 	"runtime"
 )
 
-const Version = "0.25.3"
+const Version = "0.25.4"
 
 type Config struct {
 	aiAnn               bool
@@ -103,6 +103,7 @@ func parseConfig() (*Config, error) {
 }
 
 func main() {
+
 	options, err := parseConfig()
 	if err != nil {
 		log.Fatalf("Error parsing command line: %v\n", err)

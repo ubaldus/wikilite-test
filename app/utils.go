@@ -206,11 +206,19 @@ func OpenBrowser(url string, delay int) error {
 	case "darwin":
 		cmd = "open"
 		args = []string{url}
-	default:
-		cmd = "xdg-open"
-		args = []string{url}
+	case "linux":
+		if _, err := os.Stat("/system/bin/am"); err == nil {
+			cmd = "am"
+			args = []string{"start", "-a", "android.intent.action.VIEW", "-d", url}
+		} else {
+			cmd = "xdg-open"
+			args = []string{url}
+		}
 	}
 
+	if cmd == "" {
+		return fmt.Errorf("Unsupported OS")
+	}
 	return exec.Command(cmd, args...).Start()
 }
 
