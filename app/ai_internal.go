@@ -108,7 +108,7 @@ func aiInternalEmbeddings(input string) ([]float32, error) {
 	}
 	totalFloats := nEmb * embeddingDim
 
-	goSlice := (*[1 << 30]C.float)(unsafe.Pointer(cEmbedding))[:totalFloats:totalFloats]
+	goSlice := unsafe.Slice((*C.float)(unsafe.Pointer(cEmbedding)), totalFloats)
 	result := make([]float32, totalFloats)
 	for i, v := range goSlice {
 		result[i] = float32(v)
