@@ -139,7 +139,7 @@ if(LOCAL_EMBEDDINGS_SUPPORTED)
         string(APPEND EXT_LDFLAGS " -lc++ -framework Accelerate -framework CoreFoundation -framework Security")
     endif()
     
-    string(APPEND EXT_LDFLAGS " -lembedding_wrapper -lcommon -lllama -lggml -lm")
+    string(APPEND EXT_LDFLAGS " -lembedding_wrapper -lstdc++ -lm")
 else()
     message(STATUS "Local embeddings support is disabled.")
 endif()
