@@ -27,6 +27,10 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
     set(LOCAL_EMBEDDINGS_SUPPORTED ON)
 endif()
 
+if(DEFINED ENV{TERMUX_ARCH})
+    set(CMAKE_SYSTEM_PROCESSOR "$ENV{TERMUX_ARCH}" CACHE STRING "System processor" FORCE)
+endif()
+
 if(LOCAL_EMBEDDINGS_SUPPORTED)
     message(STATUS "Local embeddings support is enabled.")
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
