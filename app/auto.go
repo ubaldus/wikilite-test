@@ -54,7 +54,7 @@ func autoStart() {
 	}
 
 	if os.Getenv("TERMUX_VERSION") != "" {
-		options.dbPath = "/data/data/com.termux/files/home"
+		options.dbPath = "/data/data/com.termux/files/home/wikilite.db"
 	}
 
 	if options.web == false && options.cli == false {
