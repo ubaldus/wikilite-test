@@ -52,6 +52,11 @@ func autoStart() {
 			autoWeb()
 		}
 	}
+
+	if os.Getenv("TERMUX_VERSION") != "" {
+		options.dbPath = "/data/data/com.termux/files/home"
+	}
+
 	if options.web == false && options.cli == false {
 		flag.Usage()
 		os.Exit(0)
