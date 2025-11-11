@@ -11,7 +11,7 @@ import (
 	"runtime"
 )
 
-const Version = "0.25.8"
+const Version = "0.26.0"
 
 type Config struct {
 	aiAnn               bool
