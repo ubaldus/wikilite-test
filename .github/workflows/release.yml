@@ -2,71 +2,12 @@ name: Build wikilite
 
 on:
   release:
+    push:
     types: [published]
 
 jobs:
-  build-macos-amd64:
-    name: Build for MacOS AMD64
-    runs-on: macos-15-intel
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-
-      - name: Build wikilite for MacOS AMD64
-        run: make
-
-      - name: Compress artifact
-        run: tar -C build/bin -czvf wikilite-macos-amd64.tar.gz wikilite
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-macos-amd64.tar.gz
-          asset_name: wikilite-macos-amd64.tar.gz
-          asset_content_type: application/octet-stream
-
-  build-macos-arm64:
-    name: Build for MacOS ARM64
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-
-      - name: Build wikilite for MacOS ARM64
-        run: make
-
-      - name: Compress artifact
-        run: tar -C build/bin -czvf wikilite-macos-arm64.tar.gz wikilite
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-macos-arm64.tar.gz
-          asset_name: wikilite-macos-arm64.tar.gz
-          asset_content_type: application/octet-stream
-
-  build-linux-amd64:
-    name: Build for Linux AMD64
+  build-termux-arm64:
+    name: Build for Termux ARM64
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -74,137 +15,32 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-          
-      - name: Build wikilite for Linux AMD64
-        run: make static
+      - name: Clone termux-packages
+        run: |
+          git clone --depth=1 https://github.com/termux/termux-packages.git
 
-      - name: Compress artifact
-        run: tar -C build/bin -czvf wikilite-linux-amd64.tar.gz wikilite
+      - name: Copy package files
+        run: |
+          mkdir -p termux-packages/packages/
+          cp -r ./termux/packages/* termux-packages/packages/
 
-      - name: Upload release asset
+      - name: Build wikilite package
+        run: |
+          cd termux-packages
+          ./scripts/run-docker.sh ./build-package.sh wikilite
+
+      - name: Rename and upload ARM64 package
+        run: |
+          cd termux-packages/output
+          DEB_FILE=$(ls wikilite_*_aarch64.deb)
+          cp "$DEB_FILE" ../../wikilite-termux-arm64.deb
+
+      - name: Upload termux package artifact
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-linux-amd64.tar.gz
-          asset_name: wikilite-linux-amd64.tar.gz
-          asset_content_type: application/octet-stream
-
-  build-linux-arm64:
-    name: Build for Linux ARM64
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-
-      - name: Build wikilite for Linux ARM64
-        run: make static
-
-      - name: Compress artifact
-        run: tar -C build/bin -czvf wikilite-linux-arm64.tar.gz wikilite
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-linux-arm64.tar.gz
-          asset_name: wikilite-linux-arm64.tar.gz
-          asset_content_type: application/octet-stream
-
-  build-linux-arm32:
-    name: Build for Linux ARM32
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Build static wikilite for Linux ARM32 using Docker
-        run: |
-          docker run --rm \
-            --platform linux/arm/v7 \
-            -v ${{ github.workspace }}:/src \
-            -w /src \
-            arm32v7/ubuntu:24.04 \
-            bash -c "apt-get update && \
-                   apt-get install -y build-essential cmake golang git && \
-                   git config --global --add safe.directory /src && \
-                   make static"
-
-      - name: Compress artifact
-        run: tar -C build/bin -czvf wikilite-linux-arm32.tar.gz wikilite
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-linux-arm32.tar.gz
-          asset_name: wikilite-linux-arm32.tar.gz
-          asset_content_type: application/octet-stream
-
-  build-windows-amd64:
-    name: Build for Windows AMD64
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-
-      - name: Install MinGW
-        run: |
-          choco install mingw -y
-
-      - name: Build wikilite for Windows AMD64
-        shell: bash
-        run: |
-          rm -rf build 
-          mkdir build 
-          cd build 
-          cmake -G "MinGW Makefiles" ..
-          make
-
-      - name: Package artifacts into a Zip file
-        run: |
-          mkdir release
-          copy build/bin/wikilite.exe release\
-          copy build\bin\*.dll release\
-          copy C:\mingw64\bin\libwinpthread-1.dll release\
-          copy C:\mingw64\bin\libstdc++-6.dll release\
-          copy C:\mingw64\bin\libgcc_s_seh-1.dll release\
-          Compress-Archive -Path release\* -DestinationPath wikilite-windows-amd64.zip
-        
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-windows-amd64.zip
-          asset_name: wikilite-windows-amd64.zip
-          asset_content_type: application/zip
+          asset_path: wikilite-termux-arm64.deb
+          asset_name: wikilite-termux-arm64.deb
+          asset_content_type: application/vnd.debian.binary-package
