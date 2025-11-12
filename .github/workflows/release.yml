@@ -22,7 +22,7 @@ jobs:
       - name: Copy package files
         run: |
           mkdir -p termux-packages/packages/
-          cp -r ./termux/packages/* termux-packages/packages/
+          cp -r ./scripts/termux/packages/* termux-packages/packages/
 
       - name: Build wikilite package
         run: |
