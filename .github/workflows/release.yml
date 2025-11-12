@@ -162,53 +162,6 @@ jobs:
           asset_name: wikilite-linux-arm32.tar.gz
           asset_content_type: application/octet-stream
 
-  build-windows-amd64:
-    name: Build for Windows AMD64
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-
-      - name: Install MinGW
-        run: |
-          choco install mingw -y
-
-      - name: Build wikilite for Windows AMD64
-        shell: bash
-        run: |
-          rm -rf build 
-          mkdir build 
-          cd build 
-          cmake -G "MinGW Makefiles" ..
-          make
-
-      - name: Package artifacts into a Zip file
-        run: |
-          mkdir release
-          copy build/bin/wikilite.exe release\
-          copy build\bin\*.dll release\
-          copy C:\mingw64\bin\libwinpthread-1.dll release\
-          copy C:\mingw64\bin\libstdc++-6.dll release\
-          copy C:\mingw64\bin\libgcc_s_seh-1.dll release\
-          Compress-Archive -Path release\* -DestinationPath wikilite-windows-amd64.zip
-        
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-windows-amd64.zip
-          asset_name: wikilite-windows-amd64.zip
-          asset_content_type: application/zip
-
   build-termux-arm32:
     name: Build for Termux ARM32
     runs-on: ubuntu-latest
@@ -286,3 +239,52 @@ jobs:
           asset_path: wikilite-termux-arm64.tar.gz
           asset_name: wikilite-termux-arm64.tar.gz
           asset_content_type: application/gzip
+
+  build-windows-amd64:
+    name: Build for Windows AMD64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install MinGW
+        run: |
+          choco install mingw -y
+
+      - name: Build wikilite for Windows AMD64
+        shell: bash
+        run: |
+          rm -rf build 
+          mkdir build 
+          cd build 
+          cmake -G "MinGW Makefiles" ..
+          make
+
+      - name: Package artifacts into a Zip file
+        run: |
+          mkdir release
+          copy build/bin/wikilite.exe release\
+          copy build\bin\*.dll release\
+          copy C:\mingw64\bin\libwinpthread-1.dll release\
+          copy C:\mingw64\bin\libstdc++-6.dll release\
+          copy C:\mingw64\bin\libgcc_s_seh-1.dll release\
+          Compress-Archive -Path release\* -DestinationPath wikilite-windows-amd64.zip
+        
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: wikilite-windows-amd64.zip
+          asset_name: wikilite-windows-amd64.zip
+          asset_content_type: application/zip
+
+
