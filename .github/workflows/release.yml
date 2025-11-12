@@ -162,6 +162,84 @@ jobs:
           asset_name: wikilite-linux-arm32.tar.gz
           asset_content_type: application/octet-stream
 
+  build-termux-arm32:
+    name: Build for Termux ARM32
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Clone termux-packages
+        run: |
+          git clone --depth=1 https://github.com/termux/termux-packages.git
+
+      - name: Copy package files
+        run: |
+          mkdir -p termux-packages/packages/
+          cp -r ./scripts/termux/packages/* termux-packages/packages/
+
+      - name: Build wikilite package
+        run: |
+          cd termux-packages
+          ./scripts/run-docker.sh ./build-package.sh -a arm --format pacman wikilite
+
+      - name: Extract binary and create clean tar.gz
+        run: |
+          cd termux-packages/output
+          tar -xf wikilite-*.pkg.tar.xz
+          tar -czvf ../../wikilite-termux-arm32.tar.gz -C data/data/com.termux/files/usr/bin wikilite
+
+      - name: Upload termux binary artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: wikilite-termux-arm32.tar.gz
+          asset_name: wikilite-termux-arm32.tar.gz
+          asset_content_type: application/gzip
+
+  build-termux-arm64:
+    name: Build for Termux ARM64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Clone termux-packages
+        run: |
+          git clone --depth=1 https://github.com/termux/termux-packages.git
+
+      - name: Copy package files
+        run: |
+          mkdir -p termux-packages/packages/
+          cp -r ./scripts/termux/packages/* termux-packages/packages/
+
+      - name: Build wikilite package
+        run: |
+          cd termux-packages
+          ./scripts/run-docker.sh ./build-package.sh -a aarch64 --format pacman wikilite
+
+      - name: Extract binary and create clean tar.gz
+        run: |
+          cd termux-packages/output
+          tar -xf wikilite-*.pkg.tar.xz
+          tar -czvf ../../wikilite-termux-arm64.tar.gz -C data/data/com.termux/files/usr/bin wikilite
+
+      - name: Upload termux binary artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: wikilite-termux-arm64.tar.gz
+          asset_name: wikilite-termux-arm64.tar.gz
+          asset_content_type: application/gzip
+
   build-windows-amd64:
     name: Build for Windows AMD64
     runs-on: windows-latest
@@ -208,3 +286,5 @@ jobs:
           asset_path: wikilite-windows-amd64.zip
           asset_name: wikilite-windows-amd64.zip
           asset_content_type: application/zip
+
+
