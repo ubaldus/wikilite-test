@@ -26,14 +26,11 @@ jobs:
         run: tar -C build/bin -czvf wikilite-macos-amd64.tar.gz wikilite
 
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wikilite-macos-amd64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-macos-amd64.tar.gz
-          asset_name: wikilite-macos-amd64.tar.gz
-          asset_content_type: application/octet-stream
 
   build-macos-arm64:
     name: Build for MacOS ARM64
@@ -56,14 +53,11 @@ jobs:
         run: tar -C build/bin -czvf wikilite-macos-arm64.tar.gz wikilite
 
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wikilite-macos-arm64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-macos-arm64.tar.gz
-          asset_name: wikilite-macos-arm64.tar.gz
-          asset_content_type: application/octet-stream
 
   build-linux-amd64:
     name: Build for Linux AMD64
@@ -86,14 +80,11 @@ jobs:
         run: tar -C build/bin -czvf wikilite-linux-amd64.tar.gz wikilite
 
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wikilite-linux-amd64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-linux-amd64.tar.gz
-          asset_name: wikilite-linux-amd64.tar.gz
-          asset_content_type: application/octet-stream
 
   build-linux-arm64:
     name: Build for Linux ARM64
@@ -116,14 +107,11 @@ jobs:
         run: tar -C build/bin -czvf wikilite-linux-arm64.tar.gz wikilite
 
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wikilite-linux-arm64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-linux-arm64.tar.gz
-          asset_name: wikilite-linux-arm64.tar.gz
-          asset_content_type: application/octet-stream
 
   build-linux-arm32:
     name: Build for Linux ARM32
@@ -153,14 +141,11 @@ jobs:
         run: tar -C build/bin -czvf wikilite-linux-arm32.tar.gz wikilite
 
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wikilite-linux-arm32.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-linux-arm32.tar.gz
-          asset_name: wikilite-linux-arm32.tar.gz
-          asset_content_type: application/octet-stream
 
   build-termux-arm32:
     name: Build for Termux ARM32
@@ -192,14 +177,11 @@ jobs:
           tar -czvf ../../wikilite-termux-arm32.tar.gz -C data/data/com.termux/files/usr/bin wikilite
 
       - name: Upload termux binary artifact
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wikilite-termux-arm32.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-termux-arm32.tar.gz
-          asset_name: wikilite-termux-arm32.tar.gz
-          asset_content_type: application/gzip
 
   build-termux-arm64:
     name: Build for Termux ARM64
@@ -231,14 +213,11 @@ jobs:
           tar -czvf ../../wikilite-termux-arm64.tar.gz -C data/data/com.termux/files/usr/bin wikilite
 
       - name: Upload termux binary artifact
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wikilite-termux-arm64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-termux-arm64.tar.gz
-          asset_name: wikilite-termux-arm64.tar.gz
-          asset_content_type: application/gzip
 
   build-windows-amd64:
     name: Build for Windows AMD64
@@ -278,13 +257,8 @@ jobs:
           Compress-Archive -Path release\* -DestinationPath wikilite-windows-amd64.zip
         
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: wikilite-windows-amd64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: wikilite-windows-amd64.zip
-          asset_name: wikilite-windows-amd64.zip
-          asset_content_type: application/zip
-
-
