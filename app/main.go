@@ -11,7 +11,7 @@ import (
 	"runtime"
 )
 
-const Version = "0.26.0"
+const Version = "0.27.0"
 
 type Config struct {
 	aiAnn               bool
@@ -28,6 +28,7 @@ type Config struct {
 	aiSync              bool
 	cli                 bool
 	dbPath              string
+	dbCompress          bool
 	help                bool
 	language            string
 	limit               int
@@ -67,6 +68,7 @@ func parseConfig() (*Config, error) {
 	flag.BoolVar(&options.cli, "cli", false, "Interactive CLI search")
 
 	flag.StringVar(&options.dbPath, "db", "wikilite.db", "SQLite database path")
+	flag.BoolVar(&options.dbCompress, "db-compress", false, "Compress the database")
 
 	flag.StringVar(&options.language, "language", "en", "Language code")
 	flag.IntVar(&options.limit, "limit", 5, "Maximum number of search results")
@@ -150,7 +152,7 @@ func main() {
 		ai = true
 	}
 
-	if options.aiSync || options.wikiImport != "" || options.aiModelImport != "" {
+	if options.aiSync || options.wikiImport != "" || options.aiModelImport != "" || options.dbCompress {
 		if err := db.PragmaImportMode(); err != nil {
 			log.Fatalf("Error setting database in import mode: %v\n", err)
 		}
@@ -170,6 +172,12 @@ func main() {
 		if ai && options.aiSync {
 			if err := db.ProcessEmbeddings(); err != nil {
 				log.Fatalf("Error processing embeddings: %v\n", err)
+			}
+		}
+
+		if options.dbCompress {
+			if err := db.Compress(); err != nil {
+				log.Fatalf("Error compressing the database: %v\n", err)
 			}
 		}
 

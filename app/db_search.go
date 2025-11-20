@@ -39,10 +39,14 @@ func (h *DBHandler) SearchTitle(searchQuery string, limit int) ([]SearchResult, 
 			return nil, err
 		}
 
+		var content sql.NullString
 		contentQuery := `SELECT content FROM sections WHERE article_id = ? LIMIT 1`
-		err = h.db.QueryRow(contentQuery, result.ArticleID).Scan(&result.Text)
+		err = h.db.QueryRow(contentQuery, result.ArticleID).Scan(&content)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, err
+		}
+		if content.Valid {
+			result.Text = content.String
 		}
 		result.Type = "T"
 		results = append(results, result)
@@ -59,6 +63,7 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 		SELECT
 			s.article_id,
 			a.title,
+      s.id,
 			s.content,
 			bm25(section_search) as power
 		FROM section_search
@@ -77,8 +82,20 @@ func (h *DBHandler) SearchContent(searchQuery string, limit int) ([]SearchResult
 	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
-		if err := rows.Scan(&result.ArticleID, &result.Title, &result.Text, &result.Power); err != nil {
+		var content sql.NullString
+		var sectionId int
+		if err := rows.Scan(&result.ArticleID, &result.Title, &sectionId, &content, &result.Power); err != nil {
 			return nil, err
+		}
+		if content.Valid {
+			result.Text = content.String
+		} else {
+			var content_flate []byte
+			if err := h.db.QueryRow("SELECT content_flate FROM sections WHERE id = ?", sectionId).Scan(&content_flate); err == nil && content_flate != nil {
+				if content, err := TextInflate(content_flate); err == nil {
+					result.Text = content
+				}
+			}
 		}
 		result.Type = "C"
 		results = append(results, result)

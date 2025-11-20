@@ -262,3 +262,78 @@ jobs:
           files: wikilite-windows-amd64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  build-android:
+    needs: [build-termux-arm32, build-termux-arm64]
+    name: Build for Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup ARM32 JNI library
+        run: |
+          mkdir -p android/app/src/main/jniLibs/armeabi-v7a
+          curl -L "https://github.com/${{ github.repository }}/releases/latest/download/wikilite-termux-arm32.tar.gz" | tar -xz -C android/app/src/main/jniLibs/armeabi-v7a/
+          mv android/app/src/main/jniLibs/armeabi-v7a/wikilite android/app/src/main/jniLibs/armeabi-v7a/libwikilite.so 
+
+      - name: Setup ARM64 JNI library
+        run: |
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          curl -L "https://github.com/${{ github.repository }}/releases/latest/download/wikilite-termux-arm64.tar.gz" | tar -xz -C android/app/src/main/jniLibs/arm64-v8a/
+          mv android/app/src/main/jniLibs/arm64-v8a/wikilite android/app/src/main/jniLibs/arm64-v8a/libwikilite.so 
+
+      - name: Set up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: '17'
+
+      - name: Build AAB
+        run: |
+          cd android && ./gradlew bundleRelease --no-daemon --warning-mode all
+
+      - name: Sign AAB
+        id: sign_app_aab
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: android/app/build/outputs/bundle/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE }}
+          alias: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Copy
+        run: |
+          cp android/app/build/outputs/bundle/release/app-release.aab wikilite-android.aab
+
+      - name: Build APK
+        run: |
+          cd android && ./gradlew assembleRelease --no-daemon --warning-mode all
+
+      - name: Sign APK
+        id: sign_app_apk
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE }}
+          alias: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Copy
+        run: |
+          cp android/app/build/outputs/apk/release/app-release-unsigned-signed.apk wikilite-android.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            wikilite-android.apk
+            wikilite-android.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

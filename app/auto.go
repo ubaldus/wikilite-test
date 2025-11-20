@@ -4,9 +4,7 @@ package main
 
 import (
 	"flag"
-	"log"
 	"os"
-	"path/filepath"
 	"runtime"
 )
 
@@ -29,14 +27,6 @@ func autoCli() {
 }
 
 func autoStart() {
-	exePath, err := os.Executable()
-	if err != nil {
-		log.Fatal(err)
-	}
-	exeDir := filepath.Dir(exePath)
-	if err := os.Chdir(exeDir); err != nil {
-		log.Fatal(err)
-	}
 	if _, err := os.Stat(options.dbPath); err != nil {
 		options.setup = true
 	}

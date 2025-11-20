@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -42,6 +43,7 @@ func (h *DBHandler) initializeDB() error {
 			article_id INTEGER,
 			title TEXT,
 			content TEXT,
+			content_flate BLOB,
 			pow INTEGER DEFAULT 0,
 			FOREIGN KEY(article_id) REFERENCES articles(id)
 		)`,
@@ -273,10 +275,11 @@ func (h *DBHandler) ArticleGet(articleID int) (ArticleResult, error) {
 	var isFirstRow = true
 	for rows.Next() {
 		var (
-			artID     int
-			artTitle  string
-			artEntity string
-			section   ArticleResultSection
+			artID          int
+			artTitle       string
+			artEntity      string
+			section        ArticleResultSection
+			sectionContent sql.NullString
 		)
 
 		if err := rows.Scan(
@@ -285,9 +288,20 @@ func (h *DBHandler) ArticleGet(articleID int) (ArticleResult, error) {
 			&artEntity,
 			&section.ID,
 			&section.Title,
-			&section.Content,
+			&sectionContent,
 		); err != nil {
 			return article, fmt.Errorf("error scanning result: %v", err)
+		}
+
+		if sectionContent.Valid {
+			section.Content = sectionContent.String
+		} else {
+			var content_flate []byte
+			if err := h.db.QueryRow("SELECT content_flate FROM sections WHERE id = ?", section.ID).Scan(&content_flate); err == nil && content_flate != nil {
+				if content, err := TextInflate(content_flate); err == nil {
+					section.Content = content
+				}
+			}
 		}
 
 		if isFirstRow {
@@ -305,4 +319,82 @@ func (h *DBHandler) ArticleGet(articleID int) (ArticleResult, error) {
 	}
 
 	return article, nil
+}
+
+func (h *DBHandler) Compress() error {
+	tx, err := h.db.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	var totalSections int
+	err = tx.QueryRow("SELECT COUNT(*) FROM sections WHERE content IS NOT NULL AND content != ''").Scan(&totalSections)
+	if err != nil {
+		return fmt.Errorf("error counting sections: %v", err)
+	}
+
+	log.Printf("Compressing %d sections", totalSections)
+
+	sectionRows, err := tx.Query("SELECT id, content FROM sections WHERE content IS NOT NULL AND content != ''")
+	if err != nil {
+		return fmt.Errorf("error querying sections: %v", err)
+	}
+	defer sectionRows.Close()
+
+	processed := 0
+	compressed := 0
+	var lastLogTime time.Time
+	batchStartTime := time.Now()
+
+	for sectionRows.Next() {
+		var id int
+		var content sql.NullString
+		if err := sectionRows.Scan(&id, &content); err != nil {
+			return fmt.Errorf("error scanning section: %v", err)
+		}
+
+		if content.Valid && content.String != "" {
+			compressedContent, err := TextDeflate(content.String)
+			if err != nil {
+				return fmt.Errorf("error compressing section content: %v", err)
+			}
+
+			if len(compressedContent) < len(content.String) {
+				_, err = tx.Exec("UPDATE sections SET content_flate = ?, content = NULL WHERE id = ?", compressedContent, id)
+				if err != nil {
+					return fmt.Errorf("error updating section with compressed content: %v", err)
+				}
+				compressed++
+			}
+		}
+
+		processed++
+
+		now := time.Now()
+		if processed%10000 == 0 || now.Sub(lastLogTime) >= 5*time.Second {
+			progress := (float64(processed) / float64(totalSections) * 100)
+			elapsed := time.Since(batchStartTime)
+			estimatedTotal := time.Duration(float64(elapsed) / float64(processed) * float64(totalSections))
+			remaining := estimatedTotal - elapsed
+			log.Printf("Compression progress: %  .2f%% - ETA: %v", progress, remaining.Round(time.Second))
+			lastLogTime = now
+		}
+	}
+
+	if err := sectionRows.Err(); err != nil {
+		return fmt.Errorf("error iterating sections: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("error committing compression transaction: %v", err)
+	}
+
+	log.Printf("Compression ready, starting VACUUM...")
+	_, err = h.db.Exec("VACUUM")
+	if err != nil {
+		return fmt.Errorf("error executing VACUUM: %v", err)
+	}
+
+	return nil
 }

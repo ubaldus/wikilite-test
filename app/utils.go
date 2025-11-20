@@ -56,39 +56,45 @@ func extractNumberFromString(s string) int {
 	return 0
 }
 
-func TextInflate(data []byte) string {
+func TextInflate(data []byte) (string, error) {
+	if len(data) == 0 {
+		return "", nil
+	}
+
 	reader := flate.NewReader(bytes.NewReader(data))
 	defer reader.Close()
 
 	var out bytes.Buffer
 	_, err := io.Copy(&out, reader)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("decompression failed: %w", err)
 	}
 
-	return out.String()
+	return out.String(), nil
 }
 
-func TextDeflate(text string) []byte {
-	var out bytes.Buffer
-
-	writer, err := flate.NewWriter(&out, flate.DefaultCompression)
-	if err != nil {
-		return nil
+func TextDeflate(text string) ([]byte, error) {
+	if text == "" {
+		return []byte{}, nil
 	}
-	defer writer.Close()
+
+	var out bytes.Buffer
+	writer, err := flate.NewWriter(&out, flate.BestCompression)
+	if err != nil {
+		return nil, fmt.Errorf("compression init failed: %w", err)
+	}
 
 	_, err = writer.Write([]byte(text))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("compression write failed: %w", err)
 	}
 
 	err = writer.Close()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("compression finalize failed: %w", err)
 	}
 
-	return out.Bytes()
+	return out.Bytes(), nil
 }
 
 func MuteStderr() (*os.File, error) {
