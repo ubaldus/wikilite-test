@@ -23,6 +23,7 @@ class DatabaseDownloadActivity : AppCompatActivity() {
     private val databaseFiles = mutableListOf<String>()
     private lateinit var preferences: SharedPreferences
     private var progressDialog: ProgressDialog? = null
+    private val DB_FILENAME = "wikilite.db"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,12 +35,17 @@ class DatabaseDownloadActivity : AppCompatActivity() {
         loadDatabaseFiles()
     }
 
+    private fun goToMainActivity() {
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
+    }
+
     private fun setupUI() {
         recyclerView = findViewById(R.id.recyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
         adapter = DatabaseFileAdapter(databaseFiles) { filePath ->
-            showDownloadOptions(filePath)
+            startDownload(filePath, filesDir.absolutePath)
         }
         recyclerView.adapter = adapter
     }
@@ -93,35 +99,6 @@ class DatabaseDownloadActivity : AppCompatActivity() {
         return files
     }
 
-    private fun getAppStorageLocations(): List<String> {
-        val locationPaths = mutableListOf<String>()
-        val storageDirs = applicationContext.getExternalFilesDirs(null).filterNotNull()
-
-        if (storageDirs.isNotEmpty()) {
-            locationPaths.addAll(storageDirs.map { it.absolutePath })
-        }
-
-        if (locationPaths.isEmpty()) {
-            locationPaths.add(applicationContext.filesDir.absolutePath)
-        }
-        return locationPaths
-    }
-
-    private fun showDownloadOptions(filePath: String) {
-        val storageLocations = getAppStorageLocations()
-
-        if (storageLocations.size <= 1) {
-            val downloadPath = storageLocations.first()
-            Toast.makeText(this, "Downloading to app storage...", Toast.LENGTH_SHORT).show()
-            startDownload(filePath, downloadPath)
-        } else {
-            val dialog = DownloadDialog(filePath) { selectedFilePath, downloadPath ->
-                startDownload(selectedFilePath, downloadPath)
-            }
-            dialog.show(supportFragmentManager, "download_dialog")
-        }
-    }
-
     private fun startDownload(filePath: String, downloadPath: String) {
         DownloadAndExtractTask().execute(filePath to downloadPath)
     }
@@ -155,8 +132,7 @@ class DatabaseDownloadActivity : AppCompatActivity() {
 
                 val fileLength = connection.contentLength.toLong()
 
-                val finalFileName = currentFilePath.substringAfterLast("/").replace(".gz", "")
-                val outputFile = File(downloadPath, finalFileName)
+                val outputFile = File(downloadPath, DB_FILENAME)
                 finalDbPath = outputFile.absolutePath
 
                 val inputStream = connection.getInputStream()
@@ -187,7 +163,6 @@ class DatabaseDownloadActivity : AppCompatActivity() {
                 true
 
             } catch (e: Exception) {
-                println("Download/Extraction error: ${e.message}")
                 e.printStackTrace()
                 false
             }
@@ -216,8 +191,7 @@ class DatabaseDownloadActivity : AppCompatActivity() {
             if (success) {
                 preferences.edit().putString("db_path", finalDbPath).apply()
                 Toast.makeText(this@DatabaseDownloadActivity, "Download successful!", Toast.LENGTH_SHORT).show()
-                startActivity(Intent(this@DatabaseDownloadActivity, MainActivity::class.java))
-                finish()
+                goToMainActivity()
             } else {
                 Toast.makeText(this@DatabaseDownloadActivity, "Download failed!", Toast.LENGTH_LONG).show()
             }

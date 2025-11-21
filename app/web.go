@@ -244,22 +244,29 @@ func (s *WebServer) handleHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *WebServer) Start(host string, port int) error {
-	http.HandleFunc("/", s.handleHome)
-	http.HandleFunc("/article", s.handleHTMLArticle)
 
-	http.HandleFunc("/api/search", s.handleAPISearch)
-	http.HandleFunc("/api/search/title", s.handleAPISearchTitle)
-	http.HandleFunc("/api/search/lexical", s.handleAPISearchLexical)
-	http.HandleFunc("/api/search/semantic", s.handleAPISearchSemantic)
-	http.HandleFunc("/api/search/distance", s.handleAPISearchWordDistance)
-	http.HandleFunc("/api/article", s.handleAPIArticle)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", s.handleHome)
+	mux.HandleFunc("/article", s.handleHTMLArticle)
+
+	mux.HandleFunc("/api/search", s.handleAPISearch)
+	mux.HandleFunc("/api/search/title", s.handleAPISearchTitle)
+	mux.HandleFunc("/api/search/lexical", s.handleAPISearchLexical)
+	mux.HandleFunc("/api/search/semantic", s.handleAPISearchSemantic)
+	mux.HandleFunc("/api/search/distance", s.handleAPISearchWordDistance)
+	mux.HandleFunc("/api/article", s.handleAPIArticle)
 
 	subFS, err := fs.Sub(assets, "assets/static")
 	if err != nil {
 		panic(fmt.Errorf("failed to access embedded subdirectory: %w", err))
 	}
 
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(subFS))))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(subFS))))
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", Name+"/"+Version)
+		mux.ServeHTTP(w, r)
+	})
 
 	address := fmt.Sprintf("%s:%d", host, port)
 	if options.webTlsPrivate != "" && options.webTlsPublic != "" {
@@ -275,7 +282,7 @@ func (s *WebServer) Start(host string, port int) error {
 		}
 	} else {
 		log.Println("Starting server on http://" + address)
-		if err := http.ListenAndServe(address, nil); err != nil {
+		if err := http.ListenAndServe(address, handler); err != nil {
 			return err
 		}
 	}

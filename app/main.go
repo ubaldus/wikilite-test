@@ -11,7 +11,8 @@ import (
 	"runtime"
 )
 
-const Version = "0.27.0"
+const Name = "wikilite"
+const Version = "0.27.2"
 
 type Config struct {
 	aiAnn               bool

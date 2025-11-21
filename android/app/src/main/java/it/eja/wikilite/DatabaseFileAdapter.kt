@@ -23,8 +23,7 @@ class DatabaseFileAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val filePath = files[position]
-        val fileName = filePath.substringAfterLast("/")
-        holder.tvFileName.text = fileName
+        holder.tvFileName.text = filePath
 
         holder.itemView.setOnClickListener {
             onItemClick(filePath)
