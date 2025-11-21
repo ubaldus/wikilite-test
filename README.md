@@ -27,12 +27,6 @@ A native [Android application](https://github.com/eja/wikilite/releases/latest/d
 *   **External Storage Support**: If a `wikilite.db` file is already present in the external SD card, the Android app will detect and use it directly.
 *   **In-App Download**: If no database is found on launch, the app provides an option to download a pre-built database.
 
-### Pre-built Database Installation
-Run Wikilite without arguments to launch the interactive wizard:
-```bash
-./wikilite
-```
-
 ## Usage
 
 Wikilite can be used in several ways:
