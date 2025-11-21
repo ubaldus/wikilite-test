@@ -1,29 +1,37 @@
 # Wikilite
 
-Wikilite is a self-contained tool for creating a local SQLite database of Wikipedia articles, indexed with FTS5 for efficient lexical searching with optional semantic search capabilities through embedded embeddings. Built with Go, Wikilite provides both command-line and web interfaces for offline access, browsing, and searching of Wikipedia content.
+Wikilite is a self-contained tool for creating a local SQLite database of Wikipedia articles, indexed with FTS5 for efficient lexical searching with optional semantic search capabilities through embedded embeddings. Built with Go, Wikilite provides command-line tools, a web interface, and a native Android application for offline access, browsing, and searching of Wikipedia content.
 
 ## Features
 
 * **Lexical Search**: Utilizes FTS5 for efficient keyword-based searching within the SQLite database, ideal for exact word and phrase matching.
 * **Optional Semantic Search**: Implements ANN quantization and MRL (Matryoshka Representation Learning) with text embeddings to find semantically similar content, effectively handling misspellings, morphological variations, and synonymy.
-* **Complete llama.cpp Integration**: Full AI engine embedded directly into Wikilite with GGUF models contained within database files
-* **Android/Termux Support**: Compatible with Termux environment using provided packages
-* **Minimal Deployment**: Requires only the Wikilite executable and the database file on POSIX platforms
-* **Offline Operation**: Complete functionality without internet connectivity
-* **Dual Interfaces**: Command-line interface for terminal usage and web interface for browser-based access
-* **Interactive Wizard**: When started without command-line options, Wikilite enters an interactive mode that guides users through database setup and search operations
+* **Complete llama.cpp Integration**: Full AI engine embedded directly into Wikilite with GGUF models contained within database files.
+* **Cross-Platform & Android**: Available for Linux, macOS, Windows, Termux, and as a native Android application.
+* **Minimal Deployment**: Requires only the Wikilite executable and the database file on POSIX platforms.
+* **Offline Operation**: Complete functionality without internet connectivity.
+* **Dual Interfaces**: Command-line interface for terminal usage and web interface for browser-based access.
+* **Interactive Wizard**: When started without command-line options, Wikilite enters an interactive mode that guides users through database setup and search operations.
 
 ## Installation
+
+### Source Compilation
+* Clone the repository: `git clone --recursive https://github.com/eja/wikilite.git`
+* Build the binary: `make`
+* Check the available options: `./build/bin/wikilite --help`
+
+### Pre-built Binaries & Android App
+Pre-compiled binaries for Linux, macOS, Windows, and Termux are available in the [latest release](https://github.com/eja/wikilite/releases/latest).
+
+A native **Android application (.apk)** is also available in the releases.
+*   **External Storage Support**: If a `wikilite.db` file is already present in the external SD card, the Android app will detect and use it directly.
+*   **In-App Download**: If no database is found on launch, the app provides an option to download a pre-built database.
 
 ### Pre-built Database Installation
 Run Wikilite without arguments to launch the interactive wizard:
 ```bash
 ./wikilite
 ```
-
-### Source Compilation
-* Clone the repository: `git clone --recursive https://github.com/eja/wikilite.git`
-* Build the binary: `make`
 
 ## Usage
 
