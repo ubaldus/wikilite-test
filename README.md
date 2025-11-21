@@ -23,7 +23,7 @@ Wikilite is a self-contained tool for creating a local SQLite database of Wikipe
 ### Pre-built Binaries & Android App
 Pre-compiled binaries for Linux, macOS, Windows, and Termux are available in the [latest release](https://github.com/eja/wikilite/releases/latest).
 
-A native [Android](https://github.com/eja/wikilite/releases/latest/download/wikilite-android.apk) application is also available in the releases.
+A native [Android application](https://github.com/eja/wikilite/releases/latest/download/wikilite-android.apk) is also available in the releases.
 *   **External Storage Support**: If a `wikilite.db` file is already present in the external SD card, the Android app will detect and use it directly.
 *   **In-App Download**: If no database is found on launch, the app provides an option to download a pre-built database.
 
